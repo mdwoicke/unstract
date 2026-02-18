@@ -1,5 +1,7 @@
+import base64
 import json
 import logging
+import re
 import uuid
 
 import litellm
@@ -15,6 +17,39 @@ from api_v2.deployment_helper import DeploymentHelper
 from chatbot.constants import MAX_CONVERSATION_HISTORY, SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
+
+
+def _pdf_bytes_to_base64_images(pdf_bytes, max_pages=5, dpi=150):
+    """Convert PDF bytes to base64-encoded PNG images for vision models.
+
+    Args:
+        pdf_bytes: Raw bytes of the PDF file.
+        max_pages: Maximum number of pages to render.
+        dpi: Resolution for rendering.
+
+    Returns:
+        list[str]: Base64-encoded PNG images.
+    """
+    try:
+        import fitz  # pymupdf
+    except ImportError:
+        logger.warning("pymupdf not installed — vision support disabled")
+        return []
+
+    images = []
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        zoom = dpi / 72.0
+        matrix = fitz.Matrix(zoom, zoom)
+        for i in range(min(len(doc), max_pages)):
+            pix = doc[i].get_pixmap(matrix=matrix)
+            img_bytes = pix.tobytes("png")
+            images.append(base64.b64encode(img_bytes).decode("utf-8"))
+        doc.close()
+        logger.info("Rendered %d PDF pages for vision model", len(images))
+    except Exception as e:
+        logger.error("Failed to render PDF pages: %s", e)
+    return images
 
 
 def extract_document(api_deployment_id, file_obj):
@@ -207,6 +242,7 @@ def _call_llm(
     document_context,
     conversation_history,
     raw_document_text="",
+    pdf_images=None,
 ):
     """Call LLM using an adapter instance.
 
@@ -216,6 +252,9 @@ def _call_llm(
         document_context: Extracted document content
         conversation_history: List of previous messages [{role, content}]
         raw_document_text: Raw OCR text from LLMWhisperer (optional)
+        pdf_images: List of base64-encoded PDF page images (optional).
+            When provided, these are sent to vision-capable models so
+            the LLM can see the actual document layout.
 
     Returns:
         str: The LLM's response text
@@ -230,13 +269,30 @@ def _call_llm(
     completion_kwargs = adapter_class.validate(adapter_metadata)
 
     system_content = f"{SYSTEM_PROMPT}\n\n"
+    if pdf_images:
+        system_content += (
+            "You have been provided with images of the original document "
+            "pages. Use these images as the PRIMARY source of truth when "
+            "answering questions. Cross-reference the extracted data and "
+            "OCR text against what you can see in the images.\n"
+            "You may cite text that you can read directly from the document "
+            "images using the same citation format.\n\n"
+        )
     system_content += (
-        f"--- EXTRACTED DATA (structured) ---\n{document_context}\n"
+        f"--- EXTRACTED DATA (structured — do NOT cite from this) ---\n"
+        f"{document_context}\n"
     )
     if raw_document_text:
         system_content += (
-            f"--- ORIGINAL DOCUMENT TEXT ---\n{raw_document_text}\n"
+            f"--- ORIGINAL DOCUMENT TEXT (source of truth — cite ONLY "
+            f"from this) ---\n{raw_document_text}\n"
         )
+    else:
+        if not pdf_images:
+            logger.warning(
+                "No raw_document_text provided — citations will be disabled. "
+                "Ensure include_metadata=true and extracted_text is available."
+            )
     system_content += "--- END ---"
 
     messages = [{"role": "system", "content": system_content}]
@@ -249,11 +305,31 @@ def _call_llm(
         if role in ("user", "assistant") and content:
             messages.append({"role": role, "content": content})
 
-    messages.append({"role": "user", "content": message})
+    # Build user message with optional vision content
+    if pdf_images:
+        user_content = [{"type": "text", "text": message}]
+        for img_b64 in pdf_images:
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                }
+            )
+        messages.append({"role": "user", "content": user_content})
+    else:
+        messages.append({"role": "user", "content": message})
 
     litellm.drop_params = True
     response = litellm.completion(messages=messages, **completion_kwargs)
-    return response["choices"][0]["message"]["content"]
+    response_text = response["choices"][0]["message"]["content"]
+
+    # Strip citations when no raw document text AND no vision images
+    # are available, since the LLM may generate them from extracted data.
+    # When vision images are provided, the LLM can cite from what it sees.
+    if not raw_document_text and not pdf_images:
+        response_text = re.sub(r'\s*\[cite:\s*"[^"]*"\]', "", response_text)
+
+    return response_text
 
 
 def chat_with_context_by_api_key(
@@ -262,6 +338,7 @@ def chat_with_context_by_api_key(
     document_context,
     conversation_history,
     raw_document_text="",
+    pdf_base64="",
 ):
     """Chat using the LLM adapter resolved from an API key.
 
@@ -271,15 +348,35 @@ def chat_with_context_by_api_key(
         document_context: Extracted document content
         conversation_history: List of previous messages [{role, content}]
         raw_document_text: Raw OCR text from LLMWhisperer (optional)
+        pdf_base64: Base64-encoded PDF file (optional). When provided,
+            the PDF pages are rendered as images and sent to the vision
+            model so it can see the actual document layout.
 
     Returns:
         str: The LLM's response text
     """
     adapter_instance = _resolve_llm_adapter_from_api_key(api_key)
+
+    pdf_images = None
+    if pdf_base64:
+        try:
+            pdf_bytes = base64.b64decode(pdf_base64)
+            pdf_images = _pdf_bytes_to_base64_images(
+                pdf_bytes, max_pages=3, dpi=100
+            )
+            if pdf_images:
+                logger.info(
+                    "Vision enabled: %d PDF page images will be sent to LLM",
+                    len(pdf_images),
+                )
+        except Exception as e:
+            logger.warning("Failed to decode PDF for vision: %s", e)
+
     return _call_llm(
         adapter_instance,
         message,
         document_context,
         conversation_history,
         raw_document_text=raw_document_text,
+        pdf_images=pdf_images,
     )

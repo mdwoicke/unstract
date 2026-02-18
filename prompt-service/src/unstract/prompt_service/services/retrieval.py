@@ -1,4 +1,6 @@
 import datetime
+import os
+import tempfile
 from typing import Any
 
 from flask import current_app as app
@@ -21,6 +23,87 @@ from unstract.sdk1.vector_db import VectorDB
 
 class RetrievalService:
     @staticmethod
+    def _find_original_pdf(
+        file_path: str,
+        execution_source: str,
+        doc_name: str = "",
+        tool_id: str = "",
+    ) -> bytes | None:
+        """Try to locate and read the original PDF from storage.
+
+        Searches multiple known path patterns:
+        1. IDE (Prompt Studio): derive from extract text path
+        2. IDE fallback: construct from tool_id + doc_name
+        3. TOOL (API deployment): try permanent storage with tool_id
+
+        Returns:
+            PDF bytes if found, None otherwise.
+        """
+        # Strategy 1: Derive from the extracted text path
+        # e.g. .../extract/doc.txt -> .../doc.pdf
+        if "/extract/" in file_path:
+            parts = file_path.rsplit("/extract/", 1)
+            if len(parts) == 2:
+                base_name = os.path.splitext(parts[1])[0]
+                pdf_path = f"{parts[0]}/{base_name}.pdf"
+                try:
+                    fs = FileUtils.get_fs_instance(
+                        execution_source=execution_source,
+                    )
+                    data = fs.read(path=pdf_path, mode="rb")
+                    if data:
+                        app.logger.info(
+                            "[Vision] Found PDF via extract path: %s",
+                            pdf_path,
+                        )
+                        return data
+                except Exception:
+                    pass
+
+        # Strategy 2: Use permanent storage with tool_id + doc_name
+        # Path: unstract/prompt-studio-data/{org}/{user}/{tool_id}/{doc_name}
+        if doc_name and tool_id and doc_name.lower().endswith(".pdf"):
+            # Extract org from file_path (3rd path component)
+            path_parts = file_path.split("/")
+            org = None
+            if len(path_parts) >= 3:
+                org = path_parts[1]  # e.g. "mock_org"
+            if org:
+                from unstract.prompt_service.constants import (
+                    ExecutionSource,
+                    FileStorageKeys,
+                )
+                from unstract.sdk1.file_storage.constants import StorageType
+                from unstract.sdk1.file_storage.env_helper import EnvHelper
+
+                try:
+                    fs = EnvHelper.get_storage(
+                        storage_type=StorageType.PERMANENT,
+                        env_name=FileStorageKeys.PERMANENT_REMOTE_STORAGE,
+                    )
+                    # Try common user paths
+                    for user_id in ["mock_user_id"]:
+                        pdf_path = (
+                            f"unstract/prompt-studio-data/{org}/"
+                            f"{user_id}/{tool_id}/{doc_name}"
+                        )
+                        try:
+                            data = fs.read(path=pdf_path, mode="rb")
+                            if data:
+                                app.logger.info(
+                                    "[Vision] Found PDF in permanent "
+                                    "storage: %s",
+                                    pdf_path,
+                                )
+                                return data
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+        return None
+
+    @staticmethod
     def perform_retrieval(  # type:ignore
         tool_settings: dict[str, Any],
         output: dict[str, Any],
@@ -33,6 +116,8 @@ class RetrievalService:
         execution_source: str,
         file_path: str,
         context_retrieval_metrics: dict[str, Any],
+        doc_name: str = "",
+        tool_id: str = "",
     ) -> tuple[str, list[str]]:
         prompt_name = output.get(PSKeys.NAME, "<unknown>")
         vector_db_id = (
@@ -61,6 +146,45 @@ class RetrievalService:
                 retrieval_type=retrieval_type,
                 context_retrieval_metrics=context_retrieval_metrics,
             )
+
+        # Generate PDF page images for vision-capable models
+        images = None
+        pdf_bytes = RetrievalService._find_original_pdf(
+            file_path=file_path,
+            execution_source=execution_source,
+            doc_name=doc_name,
+            tool_id=tool_id,
+        )
+        if pdf_bytes:
+            try:
+                from unstract.prompt_service.utils.pdf_vision import (
+                    pdf_pages_to_base64,
+                )
+
+                with tempfile.NamedTemporaryFile(
+                    suffix=".pdf", delete=False,
+                ) as tmp:
+                    tmp.write(pdf_bytes)
+                    tmp_path = tmp.name
+                try:
+                    images = pdf_pages_to_base64(
+                        tmp_path, max_pages=3, dpi=100,
+                    )
+                finally:
+                    os.unlink(tmp_path)
+
+                if images:
+                    app.logger.info(
+                        "[Retrieval] Vision enabled: %d PDF page images "
+                        "for prompt '%s'",
+                        len(images),
+                        prompt_name,
+                    )
+            except Exception as e:
+                app.logger.warning(
+                    "[Retrieval] Failed to render PDF for vision: %s", e
+                )
+
         answer = AnswerPromptService.construct_and_run_prompt(  # type:ignore
             tool_settings=tool_settings,
             output=output,
@@ -70,6 +194,7 @@ class RetrievalService:
             metadata=metadata,
             execution_source=execution_source,
             file_path=file_path,
+            images=images,
         )
         return answer, context
 

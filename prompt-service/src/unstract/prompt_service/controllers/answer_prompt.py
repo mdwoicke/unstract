@@ -401,6 +401,8 @@ def prompt_processor() -> Any:
                     execution_source=execution_source,
                     file_path=file_path,
                     context_retrieval_metrics=context_retrieval_metrics,
+                    doc_name=doc_name,
+                    tool_id=tool_id,
                 )
                 metadata[PSKeys.CONTEXT][output[PSKeys.NAME]] = context
             else:

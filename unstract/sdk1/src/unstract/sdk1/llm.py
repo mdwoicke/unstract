@@ -188,6 +188,8 @@ class LLM:
         Args:
             prompt   (str)   The input text prompt for generating the completion.
             **kwargs (Any)   Additional arguments passed to the completion function.
+                images (list[str]): Optional list of base64-encoded images to include
+                    in the user message for vision-capable models.
 
         Returns:
             dict[str, Any]  : A dictionary containing the result of the completion,
@@ -196,10 +198,28 @@ class LLM:
         try:
             litellm.drop_params = True  # drop params that are not supported by the model
 
-            messages: list[dict[str, str]] = [
-                {"role": "system", "content": self._system_prompt},
-                {"role": "user", "content": prompt},
-            ]
+            # Support multimodal content when images are provided
+            images: list[str] | None = kwargs.pop("images", None)
+            if images:
+                user_content: list[dict[str, object]] = [
+                    {"type": "text", "text": prompt},
+                ]
+                for img_b64 in images:
+                    user_content.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                        }
+                    )
+                messages: list[dict[str, object]] = [
+                    {"role": "system", "content": self._system_prompt},
+                    {"role": "user", "content": user_content},
+                ]
+            else:
+                messages: list[dict[str, object]] = [
+                    {"role": "system", "content": self._system_prompt},
+                    {"role": "user", "content": prompt},
+                ]
             logger.debug(
                 f"[sdk1][LLM]Invoking {self.adapter.get_provider()} completion API"
             )

@@ -793,6 +793,18 @@
     fileInfo.style.display = 'flex';
     submitBtn.disabled = false;
     showPreview(file);
+
+    // Capture PDF as base64 for vision model in chat
+    window._pdfBase64ForChat = '';
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        // Strip the data:...;base64, prefix to get raw base64
+        const dataUrl = e.target.result;
+        window._pdfBase64ForChat = dataUrl.split(',')[1] || '';
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   function clearFile() {
@@ -801,6 +813,7 @@
     fileInfo.style.display = 'none';
     submitBtn.disabled = true;
     hidePreview();
+    window._pdfBase64ForChat = '';
   }
 
   function formatSize(bytes) {
@@ -1106,6 +1119,7 @@
   let chatHistory = []; // [{role, content}]
   let documentContext = '';
   let isSending = false;
+  let pdfBase64ForChat = window._pdfBase64ForChat || ''; // Base64-encoded PDF for vision model
 
   // Toggle panel
   chatFab.addEventListener('click', () => {
@@ -1235,6 +1249,7 @@
           message: text,
           document_context: documentContext,
           raw_document_text: window._rawDocumentText || '',
+          pdf_base64: window._pdfBase64ForChat || '',
           conversation_history: chatHistory.slice(-20),
         }),
       });

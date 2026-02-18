@@ -97,6 +97,7 @@ class ChatView(APIView):
         message = serializer.validated_data["message"]
         document_context = serializer.validated_data["document_context"]
         raw_document_text = serializer.validated_data.get("raw_document_text", "")
+        pdf_base64 = serializer.validated_data.get("pdf_base64", "")
         conversation_history = serializer.validated_data.get(
             "conversation_history", []
         )
@@ -107,6 +108,7 @@ class ChatView(APIView):
                 message=message,
                 document_context=document_context,
                 raw_document_text=raw_document_text,
+                pdf_base64=pdf_base64,
                 conversation_history=conversation_history,
             )
             return Response(

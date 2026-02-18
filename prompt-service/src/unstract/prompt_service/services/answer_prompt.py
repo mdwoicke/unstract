@@ -113,6 +113,7 @@ class AnswerPromptService:
         metadata: dict[str, Any],
         file_path: str = "",
         execution_source: str | None = ExecutionSource.IDE.value,
+        images: list[str] | None = None,
     ) -> str:
         platform_postamble = tool_settings.get(PSKeys.PLATFORM_POSTAMBLE, "")
         word_confidence_postamble = tool_settings.get(
@@ -153,6 +154,7 @@ class AnswerPromptService:
             enable_word_confidence=enable_word_confidence,
             file_path=file_path,
             execution_source=execution_source,
+            images=images,
         )
 
     @staticmethod
@@ -207,6 +209,7 @@ class AnswerPromptService:
         enable_word_confidence: bool = False,
         file_path: str = "",
         execution_source: str | None = None,
+        images: list[str] | None = None,
     ) -> str:
         logger: Logger = app.logger
         try:
@@ -237,11 +240,13 @@ class AnswerPromptService:
                     fs_instance=fs_instance,
                     enable_word_confidence=enable_word_confidence,
                 ).run
-            completion = llm.complete(
-                prompt=prompt,
-                process_text=highlight_data,
-                extract_json=prompt_type.lower() != PSKeys.TEXT,
-            )
+            completion_kwargs = {
+                "process_text": highlight_data,
+                "extract_json": prompt_type.lower() != PSKeys.TEXT,
+            }
+            if images:
+                completion_kwargs["images"] = images
+            completion = llm.complete(prompt=prompt, **completion_kwargs)
             answer: str = completion[PSKeys.RESPONSE].text
             highlight_data = completion.get(PSKeys.HIGHLIGHT_DATA, [])
             confidence_data = completion.get(PSKeys.CONFIDENCE_DATA)
