@@ -72,7 +72,7 @@ try {
   // Ignore if hook not available
 }
 
-const CustomLogo = ({ onClick, className }) => {
+const CustomLogo = ({ className }) => {
   // Use Ant Design Image and config.logoUrl
   if (config.logoUrl) {
     return (
@@ -80,11 +80,9 @@ const CustomLogo = ({ onClick, className }) => {
         src={config.logoUrl}
         preview={false}
         className={className}
-        onClick={onClick}
         alt="logo"
         width={120}
         style={{
-          cursor: onClick ? "pointer" : undefined,
           background: "transparent",
         }}
         onError={() => {
@@ -98,7 +96,7 @@ const CustomLogo = ({ onClick, className }) => {
       />
     );
   }
-  return <UnstractLogo className={className} onClick={onClick} />;
+  return <UnstractLogo className={className} />;
 };
 let APIHubLogo;
 try {
@@ -420,16 +418,26 @@ function TopNavBar({ isSimpleLayout, topNavBarOptions }) {
     <Row align="middle" className="topNav">
       <Col span={6} className="platform-switch-container">
         {isUnstract ? (
-          <CustomLogo
-            className="topbar-logo cursor-pointer"
+          <div
+            className="topbar-logo-wrapper cursor-pointer"
             onClick={() =>
               navigate(`/${sessionDetails?.orgName}/${homePagePath}`)
             }
-          />
+          >
+            <CustomLogo className="topbar-logo" />
+          </div>
         ) : isAPIHub ? (
-          APIHubLogo && <APIHubLogo className="topbar-logo" />
+          APIHubLogo && (
+            <div className="topbar-logo-wrapper">
+              <APIHubLogo className="topbar-logo" />
+            </div>
+          )
         ) : (
-          WhispererLogo && <WhispererLogo className="topbar-logo" />
+          WhispererLogo && (
+            <div className="topbar-logo-wrapper">
+              <WhispererLogo className="topbar-logo" />
+            </div>
+          )
         )}
         {reviewPageHeader && (
           <span className="page-identifier">
@@ -503,7 +511,6 @@ TopNavBar.propTypes = {
 };
 
 CustomLogo.propTypes = {
-  onClick: PropTypes.func.isRequired,
   className: PropTypes.string.isRequired,
 };
 

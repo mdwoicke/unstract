@@ -30,6 +30,7 @@ services:
     environment:
       - ENVIRONMENT=development
       - APPLICATION_NAME=unstract-backend
+      - ENABLE_HIGHLIGHT_API_DEPLOYMENT=True
     labels:
       - traefik.enable=true
       - traefik.http.routers.backend.rule=Host(`frontend.unstract.localhost`) && (PathPrefix(`/api/v1`) || PathPrefix(`/deployment`))
@@ -52,6 +53,7 @@ services:
     environment:
       - ENVIRONMENT=development
       - APPLICATION_NAME=unstract-worker
+      - ENABLE_HIGHLIGHT_API_DEPLOYMENT=True
     labels:
       - traefik.enable=false
     volumes:
@@ -91,11 +93,13 @@ services:
     environment:
       - ENVIRONMENT=development
       - APPLICATION_NAME=unstract-worker-file-processing
+      - ENABLE_HIGHLIGHT_API_DEPLOYMENT=True
     labels:
       - traefik.enable=false
     volumes:
       - ./workflow_data:/data
       - ${TOOL_REGISTRY_CONFIG_SRC_PATH}:/data/tool_registry_config
+      - ./output:/output
 
   worker-file-processing-callback:
     image: unstract/backend:${VERSION}
@@ -116,6 +120,7 @@ services:
     volumes:
       - ./workflow_data:/data
       - ${TOOL_REGISTRY_CONFIG_SRC_PATH}:/data/tool_registry_config
+      - ./output:/output
 
   # Celery Flower
   celery-flower:

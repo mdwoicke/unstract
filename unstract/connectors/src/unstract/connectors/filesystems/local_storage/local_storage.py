@@ -60,6 +60,11 @@ class LocalStorageFS(UnstractFileSystem):
     def get_fsspec_fs(self) -> Any:
         return self.local
 
+    @staticmethod
+    def get_connector_root_dir(input_dir: str, **kwargs: Any) -> str:
+        """Preserve absolute paths for local filesystem."""
+        return f"{input_dir.rstrip('/')}/"
+
     def extract_metadata_file_hash(self, metadata: dict[str, Any]) -> str | None:
         """Extracts a unique file hash from metadata.
 

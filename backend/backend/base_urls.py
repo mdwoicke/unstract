@@ -23,6 +23,8 @@ urlpatterns = [
         include("pipeline_v2.public_api_urls"),
     ),
     path("", include("health.urls")),
+    # Chatbot API (uses Bearer API key auth, no tenant/session auth needed)
+    path("chatbot/", include("chatbot.urls")),
     # Internal API for worker communication
     path("internal/", include("backend.internal_base_urls")),
 ]

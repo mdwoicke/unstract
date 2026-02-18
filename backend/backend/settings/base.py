@@ -342,6 +342,7 @@ SHARED_APPS = (
     "prompt_studio.prompt_studio_index_manager_v2",
     "tags",
     "configuration",
+    "chatbot",
 )
 TENANT_APPS = []
 
@@ -540,6 +541,8 @@ WHITELISTED_PATHS.append(f"/{API_DEPLOYMENT_PATH_PREFIX}")
 
 # Whitelisting health check API
 WHITELISTED_PATHS.append("/health")
+# Chatbot API uses Bearer API key auth (same as deployment endpoints)
+WHITELISTED_PATHS.append("/chatbot")
 
 # These path will work without organization in request
 ORGANIZATION_MIDDLEWARE_WHITELISTED_PATHS = []

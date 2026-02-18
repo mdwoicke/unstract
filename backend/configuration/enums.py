@@ -61,6 +61,12 @@ class ConfigKey(Enum):
         max_value=settings.MAX_PARALLEL_FILE_BATCHES_MAX_VALUE,
     )
 
+    ENABLE_HIGHLIGHT_API_DEPLOYMENT = ConfigSpec(
+        default=settings.ENABLE_HIGHLIGHT_API_DEPLOYMENT,
+        value_type=ConfigType.BOOL,
+        help_text="Enable extracted_text and highlight_data in API deployment responses",
+    )
+
     def cast_value(self, raw_value: Any):
         converters = {
             ConfigType.INT: int,
