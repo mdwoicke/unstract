@@ -249,7 +249,9 @@ class AnswerPromptService:
             try:
                 completion = llm.complete(prompt=prompt, **completion_kwargs)
             except SdkError as e:
-                if not (images and "exceeds" in str(e) and "context" in str(e)):
+                is_context_exceeded = images and "exceeds" in str(e) and "context" in str(e)
+                is_bad_image = images and "failed to process image" in str(e).lower()
+                if not (is_context_exceeded or is_bad_image):
                     raise
                 # Progressive image reduction to fit context window.
                 # Removing all images is a last resort since the
@@ -282,10 +284,14 @@ class AnswerPromptService:
                         )
                         break
                     except SdkError as retry_err:
-                        if (
+                        retry_context = (
                             "exceeds" in str(retry_err)
                             and "context" in str(retry_err)
-                        ):
+                        )
+                        retry_bad_image = (
+                            "failed to process image" in str(retry_err).lower()
+                        )
+                        if retry_context or retry_bad_image:
                             continue
                         raise
                 if completion is None:

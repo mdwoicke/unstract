@@ -45,9 +45,14 @@ class RetrievalService:
             file_path, doc_name, tool_id, execution_source,
         )
         # Strategy 1: Derive from the extracted text path
-        # e.g. .../extract/doc.txt -> .../doc.pdf
-        if "/extract/" in file_path:
-            parts = file_path.rsplit("/extract/", 1)
+        # e.g. .../EXTRACT/doc.txt -> .../doc.pdf
+        _extract_sep = None
+        if "/EXTRACT/" in file_path:
+            _extract_sep = "/EXTRACT/"
+        elif "/extract/" in file_path:
+            _extract_sep = "/extract/"
+        if _extract_sep is not None:
+            parts = file_path.rsplit(_extract_sep, 1)
             if len(parts) == 2:
                 base_name = os.path.splitext(parts[1])[0]
                 pdf_path = f"{parts[0]}/{base_name}.pdf"
@@ -113,6 +118,46 @@ class RetrievalService:
                         "[Vision] Strategy 2: storage error: %s", e,
                     )
 
+        # Strategy 3: API-uploaded PDF in shared storage
+        # file_path: unstract/execution/{org}/{workflow_id}/{execution_id}/{file_exec_id}/EXTRACT
+        # target:    unstract/api/{org}/{workflow_id}/{execution_id}/{doc_name}
+        if doc_name:
+            path_parts = file_path.split("/")
+            # Expect at least: unstract / execution / org / workflow_id / execution_id
+            if len(path_parts) >= 5 and path_parts[1] == "execution":
+                org = path_parts[2]
+                workflow_id = path_parts[3]
+                execution_id = path_parts[4]
+                from unstract.prompt_service.constants import FileStorageKeys
+                from unstract.sdk1.file_storage.constants import StorageType
+                from unstract.sdk1.file_storage.env_helper import EnvHelper
+
+                try:
+                    fs = EnvHelper.get_storage(
+                        storage_type=StorageType.PERMANENT,
+                        env_name=FileStorageKeys.PERMANENT_REMOTE_STORAGE,
+                    )
+                    pdf_path = (
+                        f"unstract/api/{org}/{workflow_id}/{execution_id}/{doc_name}"
+                    )
+                    try:
+                        data = fs.read(path=pdf_path, mode="rb")
+                        if data:
+                            app.logger.info(
+                                "[Vision] Found PDF in API storage: %s",
+                                pdf_path,
+                            )
+                            return data
+                    except Exception as e:
+                        app.logger.debug(
+                            "[Vision] Strategy 3: failed for path=%s: %s",
+                            pdf_path, e,
+                        )
+                except Exception as e:
+                    app.logger.debug(
+                        "[Vision] Strategy 3: storage error: %s", e,
+                    )
+
         app.logger.debug("[Vision] PDF not found in any location")
         return None
 
@@ -169,6 +214,29 @@ class RetrievalService:
             tool_id=tool_id,
         )
         if pdf_bytes:
+            # Extract AcroForm field values and prepend to context.
+            # Handles digitally-filled PDFs where field values live in the
+            # AcroForm data layer rather than the text/OCR layer.
+            try:
+                from unstract.prompt_service.utils.pdf_form_fields import (
+                    extract_acroform_fields,
+                )
+
+                form_text = extract_acroform_fields(pdf_bytes)
+                if form_text:
+                    app.logger.info(
+                        "[Retrieval] AcroForm fields prepended for prompt '%s' "
+                        "(%d chars)",
+                        prompt_name,
+                        len(form_text),
+                    )
+                    context = [form_text] + context
+            except Exception as e:
+                app.logger.warning(
+                    "[Retrieval] AcroForm extraction failed: %s", e
+                )
+
+            # Render PDF pages as images for vision-capable LLMs
             try:
                 from unstract.prompt_service.utils.pdf_vision import (
                     pdf_pages_to_base64,
