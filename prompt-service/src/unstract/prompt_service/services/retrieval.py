@@ -39,6 +39,11 @@ class RetrievalService:
         Returns:
             PDF bytes if found, None otherwise.
         """
+        app.logger.debug(
+            "[Vision] _find_original_pdf: file_path=%s "
+            "doc_name=%s tool_id=%s execution_source=%s",
+            file_path, doc_name, tool_id, execution_source,
+        )
         # Strategy 1: Derive from the extracted text path
         # e.g. .../extract/doc.txt -> .../doc.pdf
         if "/extract/" in file_path:
@@ -63,11 +68,12 @@ class RetrievalService:
         # Strategy 2: Use permanent storage with tool_id + doc_name
         # Path: unstract/prompt-studio-data/{org}/{user}/{tool_id}/{doc_name}
         if doc_name and tool_id and doc_name.lower().endswith(".pdf"):
-            # Extract org from file_path (3rd path component)
+            # Extract org from file_path (3rd path component, index 2)
+            # e.g. "unstract/execution/mock_org/..." -> "mock_org"
             path_parts = file_path.split("/")
             org = None
             if len(path_parts) >= 3:
-                org = path_parts[1]  # e.g. "mock_org"
+                org = path_parts[2]  # e.g. "mock_org"
             if org:
                 from unstract.prompt_service.constants import (
                     ExecutionSource,
@@ -96,11 +102,18 @@ class RetrievalService:
                                     pdf_path,
                                 )
                                 return data
-                        except Exception:
+                        except Exception as e:
+                            app.logger.debug(
+                                "[Vision] Strategy 2: failed for "
+                                "path=%s: %s", pdf_path, e,
+                            )
                             continue
-                except Exception:
-                    pass
+                except Exception as e:
+                    app.logger.debug(
+                        "[Vision] Strategy 2: storage error: %s", e,
+                    )
 
+        app.logger.debug("[Vision] PDF not found in any location")
         return None
 
     @staticmethod
@@ -147,7 +160,7 @@ class RetrievalService:
                 context_retrieval_metrics=context_retrieval_metrics,
             )
 
-        # Generate PDF page images for vision-capable models
+        # Generate PDF page images (used by both preprocessor and LLM)
         images = None
         pdf_bytes = RetrievalService._find_original_pdf(
             file_path=file_path,
@@ -167,8 +180,16 @@ class RetrievalService:
                     tmp.write(pdf_bytes)
                     tmp_path = tmp.name
                 try:
+                    vision_max_pages = int(
+                        os.environ.get("VISION_MAX_PAGES", "10")
+                    )
+                    vision_dpi = int(
+                        os.environ.get("VISION_DPI", "150")
+                    )
                     images = pdf_pages_to_base64(
-                        tmp_path, max_pages=3, dpi=100,
+                        tmp_path,
+                        max_pages=vision_max_pages,
+                        dpi=vision_dpi,
                     )
                 finally:
                     os.unlink(tmp_path)
@@ -184,6 +205,26 @@ class RetrievalService:
                 app.logger.warning(
                     "[Retrieval] Failed to render PDF for vision: %s", e
                 )
+
+        # Local VL model preprocessing with vision
+        if os.environ.get("PREPROCESSOR_ENABLED", "true").lower() == "true":
+            from unstract.prompt_service.utils.claude_preprocessor import (
+                preprocess_context,
+            )
+
+            raw_context = "\n".join(context)
+            reformatted = preprocess_context(
+                raw_context, images=images,
+            )
+            if reformatted:
+                app.logger.info(
+                    "[Retrieval] Context preprocessed: "
+                    "%d -> %d chars for prompt '%s'",
+                    len(raw_context),
+                    len(reformatted),
+                    prompt_name,
+                )
+                context = [reformatted]
 
         answer = AnswerPromptService.construct_and_run_prompt(  # type:ignore
             tool_settings=tool_settings,

@@ -246,7 +246,50 @@ class AnswerPromptService:
             }
             if images:
                 completion_kwargs["images"] = images
-            completion = llm.complete(prompt=prompt, **completion_kwargs)
+            try:
+                completion = llm.complete(prompt=prompt, **completion_kwargs)
+            except SdkError as e:
+                if not (images and "exceeds" in str(e) and "context" in str(e)):
+                    raise
+                # Progressive image reduction to fit context window.
+                # Removing all images is a last resort since the
+                # preprocessor may have stripped fee data from text,
+                # relying on the model reading from images instead.
+                image_strategies = [
+                    images[::2],  # Every other page
+                    images[:3],   # First 3 pages
+                    images[:1],   # First page only
+                    None,         # No images (last resort)
+                ]
+                completion = None
+                for strategy in image_strategies:
+                    if strategy is not None:
+                        logger.warning(
+                            "Vision exceeded context, trying "
+                            "%d/%d images",
+                            len(strategy), len(images),
+                        )
+                        completion_kwargs["images"] = strategy
+                    else:
+                        logger.warning(
+                            "Removing all vision images as "
+                            "last resort",
+                        )
+                        completion_kwargs.pop("images", None)
+                    try:
+                        completion = llm.complete(
+                            prompt=prompt, **completion_kwargs
+                        )
+                        break
+                    except SdkError as retry_err:
+                        if (
+                            "exceeds" in str(retry_err)
+                            and "context" in str(retry_err)
+                        ):
+                            continue
+                        raise
+                if completion is None:
+                    raise
             answer: str = completion[PSKeys.RESPONSE].text
             highlight_data = completion.get(PSKeys.HIGHLIGHT_DATA, [])
             confidence_data = completion.get(PSKeys.CONFIDENCE_DATA)

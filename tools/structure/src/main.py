@@ -289,9 +289,10 @@ class StructureTool(BaseTool):
         tool_settings[SettingsKeys.ENABLE_SINGLE_PASS_EXTRACTION] = is_single_pass_enabled
         tool_settings[SettingsKeys.SUMMARIZE_AS_SOURCE] = is_summarization_enabled
         tool_settings[SettingsKeys.ENABLE_HIGHLIGHT] = is_highlight_enabled
-        _, file_name = os.path.split(input_file)
         if is_summarization_enabled:
             file_name = SettingsKeys.SUMMARIZE
+        else:
+            file_name = self.source_file_name
         tool_data_dir = Path(self.get_env_or_die(ToolEnv.EXECUTION_DATA_DIR))
         execution_run_data_folder = Path(self.get_env_or_die(ToolEnv.EXECUTION_DATA_DIR))
 
