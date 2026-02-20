@@ -3,20 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Unstract Document Processor</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #232734;
-    --border: #2e3345;
-    --text: #e1e4ed;
-    --text-dim: #8b90a0;
-    --accent: #6c63ff;
-    --accent-hover: #7e77ff;
-    --success: #34d399;
+    --bg: #080e1c;
+    --surface: #0d1929;
+    --surface2: #122035;
+    --border: #1c3052;
+    --text: #dde5f5;
+    --text-dim: #7888a8;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --success: #22c55e;
     --error: #f87171;
     --warning: #fbbf24;
     --radius: 10px;
@@ -239,7 +242,7 @@
 
   .dropzone:hover, .dropzone.dragover {
     border-color: var(--accent);
-    background: rgba(108, 99, 255, 0.05);
+    background: rgba(59, 130, 246, 0.05);
   }
 
   .dropzone-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
@@ -300,7 +303,7 @@
   }
 
   .status-bar.visible { display: flex; }
-  .status-bar.pending { background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.3); }
+  .status-bar.pending { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); }
   .status-bar.success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); }
   .status-bar.error { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: var(--error); }
 
@@ -416,7 +419,7 @@
     position: fixed; bottom: 24px; right: 24px; z-index: 1200;
     width: 52px; height: 52px; border-radius: 50%;
     background: var(--accent); color: #fff; border: none;
-    cursor: pointer; box-shadow: 0 4px 16px rgba(108,99,255,0.4);
+    cursor: pointer; box-shadow: 0 4px 16px rgba(59,130,246,0.4);
     display: flex; align-items: center; justify-content: center;
     transition: background 0.15s, transform 0.15s;
     font-size: 22px;
@@ -496,6 +499,39 @@
   }
   .chat-msg.assistant .bubble pre code { background: none; padding: 0; }
 
+  /* Assistant message wrapper: stacks bubble + copy bar vertically */
+  .chat-msg-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 85%;
+    align-items: flex-start;
+  }
+  .chat-msg-wrap .bubble { max-width: 100%; }
+
+  .chat-msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    margin-top: 4px;
+    padding-right: 2px;
+  }
+  .chat-msg-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    line-height: 1.4;
+  }
+  .chat-msg-copy:hover { background: var(--surface2); color: var(--text); border-color: rgba(59,130,246,0.4); }
+  .chat-msg-copy.copied { color: var(--success); border-color: var(--success); }
+
   .chat-input-area {
     display: flex; align-items: flex-end; gap: 8px;
     padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
@@ -531,8 +567,8 @@
     transition: border-color 0.2s, box-shadow 0.2s;
   }
   .chat-citation:hover {
-    border-color: rgba(108, 99, 255, 0.4);
-    box-shadow: 0 2px 12px rgba(108, 99, 255, 0.08);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.08);
   }
   .chat-citation-header {
     display: flex;
@@ -553,7 +589,7 @@
     width: 22px;
     height: 22px;
     border-radius: 5px;
-    background: rgba(108, 99, 255, 0.12);
+    background: rgba(59, 130, 246, 0.12);
     color: var(--accent);
     flex-shrink: 0;
   }
@@ -572,7 +608,7 @@
     gap: 4px;
     padding: 2px 8px;
     border-radius: 4px;
-    background: rgba(108, 99, 255, 0.10);
+    background: rgba(59, 130, 246, 0.10);
     font-weight: 600;
     font-size: 10px;
     color: var(--accent);
@@ -584,7 +620,7 @@
     flex-shrink: 0;
   }
   .chat-citation-page:hover {
-    background: rgba(108, 99, 255, 0.20);
+    background: rgba(59, 130, 246, 0.20);
   }
   .chat-citation-body {
     position: relative;
@@ -600,7 +636,7 @@
     top: 4px;
     font-size: 24px;
     font-family: Georgia, serif;
-    color: rgba(108, 99, 255, 0.35);
+    color: rgba(59, 130, 246, 0.35);
     line-height: 1;
   }
   .chat-citation-copy {
@@ -619,7 +655,7 @@
     padding: 0;
   }
   .chat-citation-copy:hover {
-    background: rgba(108, 99, 255, 0.12);
+    background: rgba(59, 130, 246, 0.12);
     color: var(--accent);
   }
   .chat-citation-copy.copied {
@@ -644,7 +680,7 @@
     <div class="config-drawer-inner">
       <div class="field">
         <label for="apiUrl">API Endpoint</label>
-        <input type="text" id="apiUrl" value="http://192.168.1.199:8000/deployment/api/mock_org/mbn_api/">
+        <input type="text" id="apiUrl" value="http://192.168.1.221:8000/deployment/api/mock_org/mbn_api/">
       </div>
       <div class="field narrow">
         <label for="apiKey">API Key</label>
@@ -1071,12 +1107,25 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // --- Copy ---
+  // --- Copy (with fallback for insecure contexts) ---
   copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(rawJson).then(() => {
+    function onCopied() {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = 'Copy JSON'; }, 1500);
-    });
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(rawJson).then(onCopied);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = rawJson;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      onCopied();
+    }
   });
 
 })();
@@ -1178,14 +1227,28 @@
       const citation = copyBtn.closest('.chat-citation');
       const body = citation ? citation.querySelector('.chat-citation-body') : null;
       if (body) {
-        navigator.clipboard.writeText(body.textContent.trim()).then(() => {
+        var text = body.textContent.trim();
+        function onCiteCopied() {
           copyBtn.classList.add('copied');
           copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
           setTimeout(() => {
             copyBtn.classList.remove('copied');
             copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
           }, 1500);
-        });
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(onCiteCopied);
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          onCiteCopied();
+        }
       }
       return;
     }
@@ -1284,11 +1347,73 @@
 
     if (role === 'assistant') {
       bubble.innerHTML = renderMarkdown(content);
+
+      // Copy text: extract only the bold values produced by the skill layer
+      // (e.g. "The Full Address is **1234 Main St**." → "1234 Main St")
+      // Fall back to full stripped text for regular prose with no bold values.
+      const boldValues = [];
+      const boldRe = /\*\*([^*]+)\*\*/g;
+      let boldMatch;
+      while ((boldMatch = boldRe.exec(content)) !== null) {
+        boldValues.push(boldMatch[1].trim());
+      }
+      const plainText = boldValues.length > 0
+        ? boldValues.join('\n')
+        : content
+            .replace(/\[cite:\s*(?:"[^"]*"(?:\s*[:,]\s*)?)+\s*\]/g, '')
+            .replace(/```[\s\S]*?```/g, '')
+            .replace(/\*\*(.+?)\*\*/g, '$1')
+            .replace(/\*(.+?)\*/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/  \n/g, '\n')
+            .trim();
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'chat-msg-copy';
+      const iconSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      const checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      copyBtn.innerHTML = iconSvg + ' Copy';
+      copyBtn.title = 'Copy response';
+
+      copyBtn.addEventListener('click', function() {
+        function onCopied() {
+          copyBtn.innerHTML = checkSvg + ' Copied!';
+          copyBtn.classList.add('copied');
+          setTimeout(function() {
+            copyBtn.innerHTML = iconSvg + ' Copy';
+            copyBtn.classList.remove('copied');
+          }, 1500);
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(plainText).then(onCopied);
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = plainText;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          onCopied();
+        }
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'chat-msg-actions';
+      actions.appendChild(copyBtn);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-msg-wrap';
+      wrap.appendChild(bubble);
+      wrap.appendChild(actions);
+      el.appendChild(wrap);
+
     } else {
       bubble.textContent = content;
+      el.appendChild(bubble);
     }
 
-    el.appendChild(bubble);
     chatMessages.appendChild(el);
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }

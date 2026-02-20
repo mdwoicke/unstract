@@ -15,20 +15,25 @@ from utils.user_context import UserContext
 
 from api_v2.deployment_helper import DeploymentHelper
 from chatbot.constants import MAX_CONVERSATION_HISTORY, SYSTEM_PROMPT
+from chatbot.chat_skills import apply_skills
 
 logger = logging.getLogger(__name__)
 
 
 def _pdf_bytes_to_base64_images(pdf_bytes, max_pages=5, dpi=150):
-    """Convert PDF bytes to base64-encoded PNG images for vision models.
+    """Convert PDF bytes to base64-encoded JPEG images for vision models.
+
+    Uses JPEG at 85% quality instead of PNG — typically 5-10x smaller,
+    which avoids "failed to process image" errors from endpoints with
+    payload size limits.
 
     Args:
         pdf_bytes: Raw bytes of the PDF file.
         max_pages: Maximum number of pages to render.
-        dpi: Resolution for rendering.
+        dpi: Resolution for rendering (lower = smaller payload).
 
     Returns:
-        list[str]: Base64-encoded PNG images.
+        list[str]: Base64-encoded JPEG images.
     """
     try:
         import fitz  # pymupdf
@@ -43,7 +48,10 @@ def _pdf_bytes_to_base64_images(pdf_bytes, max_pages=5, dpi=150):
         matrix = fitz.Matrix(zoom, zoom)
         for i in range(min(len(doc), max_pages)):
             pix = doc[i].get_pixmap(matrix=matrix)
-            img_bytes = pix.tobytes("png")
+            # Convert to RGB if necessary (JPEG doesn't support alpha channel)
+            if pix.alpha:
+                pix = fitz.Pixmap(fitz.csRGB, pix)
+            img_bytes = pix.tobytes("jpeg", jpg_quality=85)
             images.append(base64.b64encode(img_bytes).decode("utf-8"))
         doc.close()
         logger.info("Rendered %d PDF pages for vision model", len(images))
@@ -236,6 +244,48 @@ def _resolve_llm_adapter_from_api_key(api_key_str):
     return adapter
 
 
+def _is_vision_error(exc: Exception) -> bool:
+    """Return True if the exception was caused by unsupported vision/image input.
+
+    Checks the HTTP status code first (more reliable than message strings)
+    and then falls back to keyword matching across the full error text.
+    Covers OpenAI-compatible, Anthropic, and Ollama error shapes.
+    """
+    status_code = getattr(exc, "status_code", None) or getattr(
+        exc, "http_status", None
+    )
+    if status_code not in (400, 422):
+        return False
+    msg = str(exc).lower()
+    vision_keywords = (
+        "image",
+        "vision",
+        "multimodal",
+        "failed to process",
+        "unsupported content",
+        "does not support",
+        "invalid content",
+    )
+    return any(kw in msg for kw in vision_keywords)
+
+
+def _strip_images_from_messages(messages: list) -> list:
+    """Return a copy of messages with all image_url parts removed."""
+    text_only = []
+    for m in messages:
+        content = m.get("content")
+        if isinstance(content, list):
+            text_parts = [
+                p["text"] for p in content if p.get("type") == "text"
+            ]
+            text_only.append(
+                {"role": m["role"], "content": " ".join(text_parts)}
+            )
+        else:
+            text_only.append(m)
+    return text_only
+
+
 def _call_llm(
     adapter_instance,
     message,
@@ -312,7 +362,7 @@ def _call_llm(
             user_content.append(
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
                 }
             )
         messages.append({"role": "user", "content": user_content})
@@ -320,14 +370,39 @@ def _call_llm(
         messages.append({"role": "user", "content": message})
 
     litellm.drop_params = True
-    response = litellm.completion(messages=messages, **completion_kwargs)
+
+    # Track whether we actually sent images so citation-strip logic is correct
+    sent_images = bool(pdf_images)
+    try:
+        response = litellm.completion(messages=messages, **completion_kwargs)
+    except (
+        litellm.BadRequestError,
+        litellm.UnsupportedParamsError,
+        litellm.APIError,
+    ) as e:
+        if sent_images and _is_vision_error(e):
+            logger.warning(
+                "Model rejected vision input (status=%s) — retrying text-only: %s",
+                getattr(e, "status_code", "?"),
+                e,
+            )
+            response = litellm.completion(
+                messages=_strip_images_from_messages(messages),
+                **completion_kwargs,
+            )
+            sent_images = False  # images were dropped for citation-strip logic
+        else:
+            raise
+
     response_text = response["choices"][0]["message"]["content"]
 
-    # Strip citations when no raw document text AND no vision images
-    # are available, since the LLM may generate them from extracted data.
-    # When vision images are provided, the LLM can cite from what it sees.
-    if not raw_document_text and not pdf_images:
+    # Strip citations when no raw document text AND no vision images were sent,
+    # since the LLM may hallucinate citation markers from extracted data.
+    if not raw_document_text and not sent_images:
         response_text = re.sub(r'\s*\[cite:\s*"[^"]*"\]', "", response_text)
+
+    # Skill layer: deterministic post-processing (e.g. JSON → prose)
+    response_text = apply_skills(response_text)
 
     return response_text
 
@@ -362,7 +437,7 @@ def chat_with_context_by_api_key(
         try:
             pdf_bytes = base64.b64decode(pdf_base64)
             pdf_images = _pdf_bytes_to_base64_images(
-                pdf_bytes, max_pages=3, dpi=100
+                pdf_bytes, max_pages=2, dpi=72
             )
             if pdf_images:
                 logger.info(
