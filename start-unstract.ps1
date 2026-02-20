@@ -298,9 +298,13 @@ if ($registryErrors -eq 0) {
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Step "Applying code fixes to containers"
 
-# Backend: copy patched dev.py and restart
-Write-Host "  Copying dev.py into unstract-backend..." -ForegroundColor DarkGray
-docker cp "$DEV_PY" "unstract-backend:/app/backend/settings/dev.py"
+# Backend: copy patched dev.py and chatbot files, then restart
+$CHATBOT_SRC = "$UNSTRACT_ROOT\backend\chatbot"
+Write-Host "  Copying backend files into unstract-backend..." -ForegroundColor DarkGray
+docker cp "$DEV_PY"                          "unstract-backend:/app/backend/settings/dev.py"
+docker cp "$CHATBOT_SRC\chat_skills.py"      "unstract-backend:/app/chatbot/chat_skills.py"
+docker cp "$CHATBOT_SRC\chat_helper.py"      "unstract-backend:/app/chatbot/chat_helper.py"
+docker cp "$CHATBOT_SRC\constants.py"        "unstract-backend:/app/chatbot/constants.py"
 docker restart unstract-backend
 
 Write-Host "  Waiting for backend to recover after restart..." -ForegroundColor DarkGray
