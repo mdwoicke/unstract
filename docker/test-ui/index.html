@@ -551,6 +551,21 @@
   }
   .chat-send-btn:hover { background: var(--accent-hover); }
   .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .chat-mic-btn {
+    background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; cursor: pointer; font-size: 14px; flex-shrink: 0;
+    transition: background 0.15s, color 0.15s, border-color 0.15s; line-height: 1;
+  }
+  .chat-mic-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .chat-mic-btn.recording {
+    background: #fee2e2; color: #dc2626; border-color: #dc2626;
+    animation: mic-pulse 1s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+  }
 
   /* --- Citation blocks --- */
   .chat-citation {
@@ -680,7 +695,7 @@
     <div class="config-drawer-inner">
       <div class="field">
         <label for="apiUrl">API Endpoint</label>
-        <input type="text" id="apiUrl" value="http://192.168.1.221:8000/deployment/api/mock_org/mbn_api/">
+        <input type="text" id="apiUrl" value="https://192.168.1.221:5555/deployment/api/mock_org/mbn_api/">
       </div>
       <div class="field narrow">
         <label for="apiKey">API Key</label>
@@ -1150,6 +1165,7 @@
   </div>
   <div class="chat-input-area">
     <textarea id="chatInput" rows="1" placeholder="Ask about the document..." disabled></textarea>
+    <button class="chat-mic-btn" id="chatMicBtn" disabled title="Click to speak">&#127908;</button>
     <button class="chat-send-btn" id="chatSendBtn" disabled>&#10148;</button>
   </div>
 </div>
@@ -1163,6 +1179,7 @@
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
+  const chatMicBtn = document.getElementById('chatMicBtn');
   const chatContextStatus = document.getElementById('chatContextStatus');
 
   let chatHistory = []; // [{role, content}]
@@ -1199,6 +1216,7 @@
       chatContextStatus.className = 'chat-context-status has-context';
       chatInput.disabled = false;
       chatSendBtn.disabled = false;
+      chatMicBtn.disabled = false;
     }
   });
   observer.observe(jsonOutputEl, { childList: true, characterData: true, subtree: true });
@@ -1218,6 +1236,59 @@
   });
 
   chatSendBtn.addEventListener('click', sendMessage);
+
+  // Speech-to-text via Web Speech API
+  (function() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { chatMicBtn.style.display = 'none'; return; }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    let isRecording = false;
+    let baseText = ''; // text already in box before mic starts
+
+    recognition.onstart = () => {
+      isRecording = true;
+      baseText = chatInput.value;
+      chatMicBtn.classList.add('recording');
+      chatMicBtn.title = 'Listening\u2026 click to stop';
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      chatInput.value = (baseText + (baseText && (final || interim) ? ' ' : '') + (final || interim)).trimStart();
+      chatInput.style.height = 'auto';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+      if (final) baseText = chatInput.value;
+    };
+
+    recognition.onend = () => {
+      isRecording = false;
+      chatMicBtn.classList.remove('recording');
+      chatMicBtn.title = 'Click to speak';
+      chatInput.focus();
+    };
+
+    recognition.onerror = () => {
+      isRecording = false;
+      chatMicBtn.classList.remove('recording');
+      chatMicBtn.title = 'Click to speak';
+    };
+
+    chatMicBtn.addEventListener('click', () => {
+      if (isRecording) { recognition.stop(); }
+      else { recognition.start(); }
+    });
+  })();
 
   // Click handler for citation actions (copy + page nav)
   chatMessages.addEventListener('click', (e) => {
@@ -1293,6 +1364,7 @@
     isSending = true;
     chatInput.disabled = true;
     chatSendBtn.disabled = true;
+    chatMicBtn.disabled = true;
 
     // Add loading indicator
     const loadingEl = document.createElement('div');
@@ -1335,6 +1407,7 @@
       isSending = false;
       chatInput.disabled = !documentContext;
       chatSendBtn.disabled = !documentContext;
+      chatMicBtn.disabled = !documentContext;
       chatInput.focus();
     }
   }
