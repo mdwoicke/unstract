@@ -647,6 +647,7 @@ unstract/tool-registry/tool_registry_config/registry.yaml
 
 # Docker related
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,pycharm,pycharm+all,pycharm+iml,python,visualstudiocode,react,django
+docker/test-ui/key.pem
 docker/temp/*
 docker/*.env
 !docker/sample*.env
