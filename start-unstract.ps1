@@ -4,8 +4,9 @@
     Unstract All-In-One Startup Script
 .DESCRIPTION
     Detects machine IP, patches source files, starts Docker services, applies container
-    code fixes (CORS + vision preprocessing), starts the test UI Node server, and
-    verifies the LM Studio vision model context window.
+    code fixes (CORS + vision preprocessing), auto-generates an SSL certificate so the
+    test UI runs over HTTPS (required for microphone/speech-to-text access), starts the
+    test UI Node server, and verifies the LM Studio vision model context window.
 #>
 
 Set-StrictMode -Off
@@ -88,9 +89,9 @@ $PROMPT_SRC     = "$UNSTRACT_ROOT\prompt-service\src\unstract\prompt_service"
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Step "Patching IP into source files"
 
-# -- index.html: replace any 192.168.x.x:8000 in the apiUrl input value
+# -- index.html: replace any 192.168.x.x in the apiUrl input value (https proxy URL)
 $html = Get-Content $INDEX_HTML -Raw
-$htmlNew = $html -replace '(value="http://)192\.168\.\d+\.\d+(:\d+/)', "`${1}${LOCAL_IP}`${2}"
+$htmlNew = $html -replace '(value="https://)192\.168\.\d+\.\d+(:\d+/)', "`${1}${LOCAL_IP}`${2}"
 if ($htmlNew -ne $html) {
     Set-Content $INDEX_HTML $htmlNew -NoNewline
     Write-OK "index.html patched with $LOCAL_IP"
@@ -98,9 +99,10 @@ if ($htmlNew -ne $html) {
     Write-OK "index.html already has correct IP"
 }
 
-# -- server.js: replace the console.log IP
+# -- server.js: replace console.log IP (https) and BACKEND constant IP (http to Django)
 $js = Get-Content $SERVER_JS -Raw
-$jsNew = $js -replace 'http://192\.168\.\d+\.\d+:\$\{PORT\}/', "http://${LOCAL_IP}:`${PORT}/"
+$jsNew = $js -replace 'https://192\.168\.\d+\.\d+:\$\{PORT\}/', "https://${LOCAL_IP}:`${PORT}/"
+$jsNew = $jsNew -replace "(const BACKEND = 'http://)192\.168\.\d+\.\d+(:\d+';)", "`${1}${LOCAL_IP}`${2}"
 if ($jsNew -ne $js) {
     Set-Content $SERVER_JS $jsNew -NoNewline
     Write-OK "server.js patched with $LOCAL_IP"
@@ -116,6 +118,11 @@ $pyNew = $py -replace '192\.168\.\d+\.\d+', $LOCAL_IP
 if ($pyNew -notmatch [regex]::Escape("http://${LOCAL_IP}:8000")) {
     $pyNew = $pyNew -replace '(# Other allowed origins if needed)', `
         "`"http://${LOCAL_IP}:8000`",`n    `${1}"
+}
+# Ensure https://$LOCAL_IP:5555 is present (test UI now runs over HTTPS for mic access)
+if ($pyNew -notmatch [regex]::Escape("https://${LOCAL_IP}:5555")) {
+    $pyNew = $pyNew -replace '(# Other allowed origins if needed)', `
+        "`"https://${LOCAL_IP}:5555`",`n    `${1}"
 }
 if ($pyNew -ne $py) {
     Set-Content $DEV_PY $pyNew -NoNewline
@@ -339,7 +346,7 @@ try {
         -Method Options `
         -Uri "http://${LOCAL_IP}:8000/deployment/api/mock_org/mbn_api/" `
         -Headers @{
-            "Origin"                         = "http://${LOCAL_IP}:5555"
+            "Origin"                         = "https://${LOCAL_IP}:5555"
             "Access-Control-Request-Method"  = "POST"
         } `
         -UseBasicParsing `
@@ -347,11 +354,11 @@ try {
         -ErrorAction SilentlyContinue
 
     $allowedOrigin = $corsResponse.Headers["Access-Control-Allow-Origin"]
-    if ($allowedOrigin -eq "http://${LOCAL_IP}:5555") {
+    if ($allowedOrigin -eq "https://${LOCAL_IP}:5555") {
         Write-OK "CORS OK — Access-Control-Allow-Origin: $allowedOrigin"
         $corsStatus = "OK ($LOCAL_IP`:5555 allowed)"
     } else {
-        Write-Warn "CORS header mismatch. Got: '$allowedOrigin' (expected 'http://${LOCAL_IP}:5555')"
+        Write-Warn "CORS header mismatch. Got: '$allowedOrigin' (expected 'https://${LOCAL_IP}:5555')"
         Write-Warn "Extraction requests from the test UI may be blocked."
         $corsStatus = "MISMATCH (got: $allowedOrigin)"
     }
@@ -361,7 +368,46 @@ try {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STEP 9 — Start Test UI Node Server
+# STEP 9 — Ensure SSL Certificate Exists for Test UI
+# ─────────────────────────────────────────────────────────────────────────────
+Write-Step "Checking SSL certificate for Test UI (required for microphone access)"
+
+$CERT_PEM = "$DOCKER_DIR\test-ui\cert.pem"
+$KEY_PEM  = "$DOCKER_DIR\test-ui\key.pem"
+$SSL_CNF  = "$DOCKER_DIR\test-ui\ssl.cnf"
+
+if (-not (Test-Path $CERT_PEM) -or -not (Test-Path $KEY_PEM)) {
+    Write-Host "  Generating self-signed SSL certificate..." -ForegroundColor DarkGray
+
+    # Update ssl.cnf with the current machine IP
+    $cnfContent = Get-Content $SSL_CNF -Raw
+    $cnfNew = $cnfContent -replace 'IP\.1\s*=\s*192\.168\.\d+\.\d+', "IP.1 = $LOCAL_IP"
+    Set-Content $SSL_CNF $cnfNew -NoNewline
+
+    $opensslExe = "C:\Program Files\Git\mingw64\bin\openssl.exe"
+    if (-not (Test-Path $opensslExe)) {
+        $opensslExe = (Get-Command openssl -ErrorAction SilentlyContinue)?.Source
+    }
+
+    if ($opensslExe) {
+        & $opensslExe req -x509 -newkey rsa:2048 -keyout $KEY_PEM -out $CERT_PEM `
+            -days 365 -nodes -config $SSL_CNF 2>&1 | Out-Null
+        if (Test-Path $CERT_PEM) {
+            Write-OK "SSL certificate generated (valid 365 days)"
+        } else {
+            Write-Fail "Certificate generation failed — mic input will not work"
+        }
+    } else {
+        Write-Fail "openssl not found — cannot generate certificate. Mic input will not work."
+        Write-Warn "Install Git for Windows (includes openssl) or generate cert.pem/key.pem manually."
+        Write-Warn "See docker\test-ui\HTTPS-SETUP.md for instructions."
+    }
+} else {
+    Write-OK "SSL certificate already exists"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 10 — Start Test UI Node Server
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Step "Starting Test UI Node server on port 5555"
 
@@ -382,22 +428,17 @@ $nodeProc = Start-Process "node" `
 Start-Sleep -Seconds 2
 
 $uiStatus = "UNKNOWN"
-try {
-    $uiCheck = Invoke-WebRequest -Uri "http://localhost:5555" -UseBasicParsing -TimeoutSec 5
-    if ($uiCheck.StatusCode -eq 200) {
-        Write-OK "Test UI server running on port 5555 (PID $($nodeProc.Id))"
-        $uiStatus = "Running on port 5555"
-    } else {
-        Write-Warn "Test UI returned status $($uiCheck.StatusCode)"
-        $uiStatus = "Unexpected status $($uiCheck.StatusCode)"
-    }
-} catch {
-    Write-Warn "Test UI server did not respond on port 5555: $_"
-    $uiStatus = "NOT RESPONDING"
+Start-Sleep -Seconds 2
+if ($nodeProc -and -not $nodeProc.HasExited) {
+    Write-OK "Test UI server running on port 5555 (PID $($nodeProc.Id))"
+    $uiStatus = "Running on https://${LOCAL_IP}:5555"
+} else {
+    Write-Warn "Test UI server process exited unexpectedly — check node/server.js"
+    $uiStatus = "NOT RUNNING"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STEP 10 — Check LM Studio API + Vision Context Warning
+# STEP 11 — Check LM Studio API + Vision Context Warning
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Step "Checking LM Studio API"
 
@@ -427,7 +468,7 @@ try {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STEP 11 — Final Status Summary
+# STEP 12 — Final Status Summary
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Count running containers
@@ -439,7 +480,7 @@ Write-Host "============================================================" -Foreg
 Write-Host " UNSTRACT STARTUP COMPLETE" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host " Machine IP:      $LOCAL_IP"
-Write-Host " PDF Uploader UI: http://${LOCAL_IP}:5555"
+Write-Host " PDF Uploader UI: https://${LOCAL_IP}:5555"
 Write-Host " Backend API:     http://${LOCAL_IP}:8000"
 Write-Host " Frontend:        http://frontend.unstract.localhost"
 Write-Host " RabbitMQ UI:     http://localhost:15672"
