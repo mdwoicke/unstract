@@ -12,14 +12,14 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #fff;
+    background-color: #111827;
 }
 
 .login-right-section {
     width: 50%;
     height: 100vh;
     overflow-y: auto;
-    background-color: #ECEFF3;
+    background-color: #0f172a;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -37,7 +37,7 @@
     font-weight: 500;
     line-height: 50px;
     text-align: center;
-    color: #05182A;
+    color: #e2e8f0;
 }
 .right-title-cover{
     width: 75%;
@@ -47,7 +47,7 @@
     margin: 0 auto;
 }
 .right-subtitle{
-    color:#3D6182;
+    color:#94a3b8;
     font-size: 20px;
     font-weight: 400;
     line-height: 30px;
@@ -90,7 +90,7 @@
     width: 100%;
     margin: 0 auto;
     height: 50px;
-    background-color: #2F93F6;
+    background-color: #3b82f6;
     color: #fff;
     font-size: 16px;
     font-weight: 600;

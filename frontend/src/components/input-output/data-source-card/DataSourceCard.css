@@ -1,6 +1,6 @@
 .ds-card {
-  background-color: white;
-  border: 1px solid #0000000f;
+  background-color: #111827;
+  border: 1px solid #1e293b;
   width: 240px;
 }
 
@@ -24,9 +24,9 @@
 
 .ds-card-name {
   width: 100%;
-  border-top: 1px solid #0000000f;
+  border-top: 1px solid #1e293b;
   padding: 10px 0px;
-  background-color: #00000005;
+  background-color: #0f172a;
 }
 
 .disabled-overlay {
@@ -38,7 +38,7 @@
   padding: 8px 16px;
   border-radius: 4px;
   text-align: center;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(17, 24, 39, 0.85);
 }
 
 .cover-container {

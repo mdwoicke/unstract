@@ -72,6 +72,9 @@ WEB_APP_ORIGIN_URL = os.environ.get("WEB_APP_ORIGIN_URL", "http://localhost:3000
 parsed_url = urlparse(WEB_APP_ORIGIN_URL)
 WEB_APP_ORIGIN_URL_WITH_WILD_CARD = f"{parsed_url.scheme}://*.{parsed_url.netloc}"
 CORS_ALLOWED_ORIGINS = [WEB_APP_ORIGIN_URL]
+_extra_cors = os.environ.get("CORS_EXTRA_ALLOWED_ORIGINS", "")
+if _extra_cors:
+    CORS_ALLOWED_ORIGINS += [o.strip() for o in _extra_cors.split(",") if o.strip()]
 
 DJANGO_APP_BACKEND_URL = os.environ.get("DJANGO_APP_BACKEND_URL", "http://localhost:8000")
 INTERNAL_SERVICE_API_KEY = os.environ.get("INTERNAL_SERVICE_API_KEY")

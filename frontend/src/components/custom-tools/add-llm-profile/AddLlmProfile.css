@@ -9,11 +9,11 @@
 }
 
 .retrieval-strategy-selector {
-  border: 1px solid #d9d9d9;
+  border: 1px solid #1e293b;
   border-radius: 6px;
   padding: 4px 11px;
   cursor: pointer;
-  background-color: #fff;
+  background-color: #111827;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -31,7 +31,7 @@
 }
 
 .retrieval-strategy-selector:active {
-  border-color: #1890ff !important;
+  border-color: #3b82f6 !important;
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.15);
 }
 
@@ -41,11 +41,11 @@
 }
 
 .retrieval-strategy-text--selected {
-  color: #000;
+  color: #e2e8f0;
 }
 
 .retrieval-strategy-text--placeholder {
-  color: #bfbfbf;
+  color: #64748b;
 }
 
 .retrieval-strategy-actions {
@@ -55,13 +55,13 @@
 }
 
 .retrieval-strategy-settings-icon {
-  color: #1890ff;
+  color: #3b82f6;
   font-size: 12px;
   cursor: pointer;
 }
 
 .retrieval-strategy-dropdown-icon {
-  color: #bfbfbf;
+  color: #64748b;
   font-size: 10px;
   cursor: pointer;
 }

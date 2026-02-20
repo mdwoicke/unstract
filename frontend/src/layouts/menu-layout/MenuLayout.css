@@ -5,7 +5,7 @@
   align-items: center;
   /* column-gap: 12px; */
   height: min-content;
-  background-color: #F5F7F9;
+  background-color: #111827;
   padding-block: 8px;
   padding-inline: 12px;
 }
@@ -38,9 +38,9 @@
   margin-left: 5px;
 }
 .active_btn {
-  border-color: #1554ad;
+  border-color: #3b82f6;
   color: white;
-  background-color: #1554ad;
+  background-color: #3b82f6;
   margin: 0 5px;
 }
 .radio_btn {

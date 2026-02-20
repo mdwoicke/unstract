@@ -1,5 +1,6 @@
 .side-bar {
-  background-color: #0d3a63 !important;
+  background-color: #0b1120 !important;
+  border-right: 1px solid #1e293b;
   overflow-y: auto;
 }
 
@@ -47,7 +48,7 @@
 
 .space-styles-active,
 .space-styles:hover {
-  background: #005b82;
+  background: #1e293b;
 }
 
 .space-styles-disable {
@@ -61,7 +62,7 @@
 }
 
 .sidebar-item-text {
-  color: #b4c2cf;
+  color: #94a3b8;
   text-align: left;
 }
 

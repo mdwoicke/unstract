@@ -3,7 +3,6 @@ import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { useEffect } from "react";
 
-import { THEME } from "./helpers/GetStaticData.js";
 import { Router } from "./routes/Router.jsx";
 import { useAlertStore } from "./store/alert-store.js";
 import { useSessionStore } from "./store/session-store.js";
@@ -23,8 +22,8 @@ try {
 
 function App() {
   const [notificationAPI, contextHolder] = notification.useNotification();
-  const { defaultAlgorithm, darkAlgorithm } = theme;
-  const { sessionDetails, isLogoutLoading } = useSessionStore();
+  const { darkAlgorithm } = theme;
+  const { isLogoutLoading } = useSessionStore();
   const { alertDetails } = useAlertStore();
   const { pushLogMessages } = useSocketLogsStore();
 
@@ -73,15 +72,77 @@ function App() {
     <ConfigProvider
       direction={window.direction || "ltr"}
       theme={{
-        algorithm:
-          sessionDetails.currentTheme === THEME.DARK
-            ? darkAlgorithm
-            : defaultAlgorithm,
+        algorithm: darkAlgorithm,
+        token: {
+          colorPrimary: "#3b82f6",
+          colorBgContainer: "#111827",
+          colorBgElevated: "#1e293b",
+          colorBgLayout: "#0f172a",
+          colorBgBase: "#0b1120",
+          colorBorder: "#1e293b",
+          colorBorderSecondary: "#1e293b",
+          colorText: "#e2e8f0",
+          colorTextSecondary: "#94a3b8",
+          colorTextTertiary: "#64748b",
+          colorTextQuaternary: "#475569",
+          colorFillSecondary: "#1e293b",
+          colorFillTertiary: "#1e293b",
+          colorBgTextHover: "#1e293b",
+          colorBgTextActive: "#2563eb",
+          colorLink: "#3b82f6",
+          colorLinkHover: "#60a5fa",
+          colorSuccess: "#22c55e",
+          borderRadius: 6,
+        },
         components: {
           Button: {
-            colorPrimary: "#092C4C",
-            colorPrimaryHover: "#0e4274",
-            colorPrimaryActive: "#092C4C",
+            colorPrimary: "#3b82f6",
+            colorPrimaryHover: "#2563eb",
+            colorPrimaryActive: "#1d4ed8",
+          },
+          Table: {
+            colorBgContainer: "#111827",
+            headerBg: "#0f172a",
+            headerColor: "#94a3b8",
+            rowHoverBg: "#1e293b",
+            borderColor: "#1e293b",
+            colorText: "#e2e8f0",
+          },
+          Menu: {
+            darkItemBg: "#0b1120",
+            darkItemSelectedBg: "#1e293b",
+            darkItemHoverBg: "#1e293b",
+          },
+          Card: {
+            colorBgContainer: "#111827",
+            colorBorderSecondary: "#1e293b",
+          },
+          Modal: {
+            contentBg: "#111827",
+            headerBg: "#111827",
+            footerBg: "#111827",
+          },
+          Input: {
+            colorBgContainer: "#0f172a",
+            colorBorder: "#1e293b",
+            activeBorderColor: "#3b82f6",
+            hoverBorderColor: "#3b82f6",
+          },
+          Select: {
+            colorBgContainer: "#0f172a",
+            colorBorder: "#1e293b",
+            colorBgElevated: "#1e293b",
+          },
+          Tabs: {
+            colorPrimary: "#3b82f6",
+            itemSelectedColor: "#ffffff",
+            itemHoverColor: "#94a3b8",
+            itemColor: "#64748b",
+          },
+          Tag: {
+            colorBgContainer: "#1e293b",
+            colorBorder: "#1e293b",
+            colorText: "#e2e8f0",
           },
         },
       }}

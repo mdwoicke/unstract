@@ -9,7 +9,7 @@
 
 .layout-header {
     padding: 12px 16px;
-    background-color: #F5F7F9;
+    background-color: #111827;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -37,21 +37,21 @@
 }
 
 .layout-body .table .ant-table-thead > tr > th {
-    background: #EBEDEF;
+    background: #0f172a;
     border-start-start-radius: 0px !important;
     border-start-end-radius: 0px !important;
 }
 
 .layout-body .table .ant-table-thead > tr > th::before {
-    background-color: #dddfe0 !important;
+    background-color: #1e293b !important;
 }
 
 .layout-body .table tr:nth-child(even) {
-    background: #FBFCFC;
+    background: #0f172a;
 }
 
 .layout-body .table .workflowName {
-    color: #1890ff;
+    color: #3b82f6;
     cursor: pointer;
 }
 

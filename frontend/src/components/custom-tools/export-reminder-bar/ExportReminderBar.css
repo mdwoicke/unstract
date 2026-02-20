@@ -8,8 +8,8 @@
 .export-reminder-bar .ant-alert {
   border-radius: 0;
   border: none;
-  background-color: #fffbe6;
-  border-bottom: 1px solid #ffe58f;
+  background-color: #332b00;
+  border-bottom: 1px solid #665500;
 }
 
 .export-reminder-content {

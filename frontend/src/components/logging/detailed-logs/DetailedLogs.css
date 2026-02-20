@@ -100,16 +100,16 @@
 }
 
 .column-settings-trigger:hover {
-  background-color: rgba(0, 0, 0, 0.04);
+  background-color: rgba(255, 255, 255, 0.06);
 }
 
 .column-settings-icon {
   font-size: 16px;
-  color: rgba(0, 0, 0, 0.45);
+  color: #64748b;
 }
 
 .column-settings-trigger:hover .column-settings-icon {
-  color: #1677ff;
+  color: #3b82f6;
 }
 
 /* Thin scrollbar */
@@ -118,7 +118,7 @@
 }
 
 .detailed-logs-table-container .ant-table-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
 }
 
@@ -157,15 +157,15 @@
 
 /* Outlined copy button style - matches LLM Profiles / API Deployments */
 .copy-btn-outlined {
-  border: 1px solid #d9d9d9;
-  background: #fff;
-  color: rgba(0, 0, 0, 0.65);
+  border: 1px solid #1e293b;
+  background: #111827;
+  color: #94a3b8;
   margin-left: 8px;
   height: auto;
   min-width: auto;
 }
 
 .copy-btn-outlined:hover {
-  border-color: #1677ff;
-  color: #1677ff;
+  border-color: #3b82f6;
+  color: #3b82f6;
 }

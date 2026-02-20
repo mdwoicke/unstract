@@ -1,5 +1,5 @@
 .retrieval-strategy-modal .ant-modal-header {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #1e293b;
   padding: 16px 24px;
 }
 
@@ -19,28 +19,28 @@
   display: flex;
   align-items: flex-start;
   padding: 12px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid #1e293b;
   border-radius: 6px;
   transition: all 0.3s ease;
 }
 
 .retrieval-strategy-modal .ant-radio-wrapper:hover {
-  border-color: #1890ff;
-  background-color: #f6ffed;
+  border-color: #3b82f6;
+  background-color: #1a2e1a;
 }
 
 .retrieval-strategy-modal .ant-radio-wrapper-checked {
-  border-color: #1890ff;
-  background-color: #e6f7ff;
+  border-color: #3b82f6;
+  background-color: #1e3a5f;
 }
 
 .retrieval-strategy-modal .ant-typography h4 {
   margin-bottom: 8px;
-  color: #262626;
+  color: #e2e8f0;
 }
 
 .retrieval-strategy-modal .ant-typography p {
-  color: #595959;
+  color: #94a3b8;
   line-height: 1.5;
 }
 
@@ -50,7 +50,7 @@
 
 .retrieval-strategy-modal ul li {
   margin-bottom: 4px;
-  color: #595959;
+  color: #94a3b8;
 }
 
 .retrieval-strategy-modal .ant-divider {
@@ -65,14 +65,14 @@
 }
 
 .retrieval-strategy-modal .resource-impact-item .anticon {
-  color: #8c8c8c;
+  color: #64748b;
 }
 
 .retrieval-strategy-modal .technical-details {
-  background-color: #fafafa;
+  background-color: #0f172a;
   padding: 12px;
   border-radius: 4px;
-  border-left: 3px solid #1890ff;
+  border-left: 3px solid #3b82f6;
 }
 
 .retrieval-strategy-modal .strategy-icon {
@@ -135,7 +135,7 @@
 .retrieval-strategy-modal__details {
   flex: 1.5;
   padding-left: 16px;
-  border-left: 1px solid #f0f0f0;
+  border-left: 1px solid #1e293b;
 }
 
 .retrieval-strategy-modal__title {
@@ -209,7 +209,7 @@
 
   .retrieval-strategy-modal__details {
     border-left: none;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid #1e293b;
     padding-left: 0;
     padding-top: 16px;
     margin-top: 16px;

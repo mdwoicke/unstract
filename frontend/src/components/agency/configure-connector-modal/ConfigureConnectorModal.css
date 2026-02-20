@@ -13,7 +13,7 @@
 .conn-modal-row {
     flex: 1;
     overflow-y: hidden;
-    border: 1px solid #D4D4D4;
+    border: 1px solid #1e293b;
     border-radius: 8px;
 }
 
@@ -22,7 +22,7 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    border-right: 1px solid #f0f0f0;
+    border-right: 1px solid #1e293b;
 }
 
 .conn-modal-col-left {
@@ -41,7 +41,7 @@
 
 .conn-modal-form-pad-right {
     padding: 0px 8px 0px 8px;
-    border-right: 1px solid #D4D4D4;
+    border-right: 1px solid #1e293b;
 }
 
 .conn-modal-form-pad-left {
@@ -78,10 +78,10 @@
 }
 
 .connector-dropdown-add-new {
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid #1e293b;
     padding: 8px 12px;
     cursor: pointer;
-    background-color: #fafafa;
+    background-color: #0f172a;
     transition: background-color 0.2s;
 
     /* Button reset styles */
@@ -95,13 +95,13 @@
 }
 
 .connector-dropdown-add-new:hover {
-    background-color: #f0f0f0;
+    background-color: #1e293b;
 }
 
 .connector-dropdown-add-new:focus {
     outline: 2px solid #1890ff;
     outline-offset: -2px;
-    background-color: #f0f0f0;
+    background-color: #1e293b;
 }
 
 .connector-dropdown-menu-container {

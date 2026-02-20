@@ -10,7 +10,7 @@
 
 .output-analyzer-header {
   padding: 10px;
-  background-color: #f5f7f9;
+  background-color: #111827;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -42,7 +42,7 @@
   padding: 12px;
   display: flex;
   justify-content: space-between;
-  background-color: #eceff3;
+  background-color: #0f172a;
 }
 
 .output-analyzer-main {

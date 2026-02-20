@@ -11,7 +11,7 @@
   width: 80%;
 }
 .org-list {
-  background: #ffffff;
+  background: #111827;
   flex: 1;
   height: 100%;
   display: flex;
@@ -98,14 +98,14 @@
 }
 
 .org-card-container .ant-card-meta-title {
-  color: #0d3a63;
+  color: #e2e8f0;
   font-weight: 700;
   font-size: 20px;
   text-overflow: ellipsis;
 }
 
 .org-svg {
-  background: #f5f7f9;
+  background: #0f172a;
 }
 
 .org-selection-svg {
