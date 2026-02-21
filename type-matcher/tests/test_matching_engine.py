@@ -37,7 +37,7 @@ def test_phone_type_match():
 
 
 def test_name_type_match_by_key():
-    """first_name key should match 'First Name' label field even with generic text type."""
+    """first_name key should match 'First Name' label field and auto-fill."""
     req = MatchRequest(
         payload={"first_name": "John"},
         fields=[_field(label="First Name", selector="#fname")],
@@ -45,6 +45,23 @@ def test_name_type_match_by_key():
     results = apply_matching_skills(req)
     assert len(results) == 1
     assert results[0].jsonKey == "first_name"
+    assert results[0].auto is True
+
+
+def test_name_camel_case_key():
+    """camelCase keys like firstName should match name fields."""
+    req = MatchRequest(
+        payload={"firstName": "Jane", "lastName": "Doe"},
+        fields=[
+            _field(label="First Name", selector="#fname"),
+            _field(label="Last Name", selector="#lname"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    auto_results = [r for r in results if r.auto]
+    matched_keys = {r.jsonKey for r in auto_results}
+    assert "firstName" in matched_keys
+    assert "lastName" in matched_keys
 
 
 def test_multiple_fields():
@@ -104,3 +121,43 @@ def test_one_to_one_assignment():
     assigned_keys = [r.jsonKey for r in results]
     # The same key can appear at most once
     assert len(assigned_keys) == len(set(assigned_keys))
+
+
+def test_company_name_not_confused_with_full_name():
+    """company_name should match COMPANY_NAME, not NAME_FULL."""
+    req = MatchRequest(
+        payload={"company_name": "Acme Corp", "full_name": "John Doe"},
+        fields=[
+            _field(label="Company / Employer Name", name="company_name", selector="#company"),
+            _field(label="Full Name", selector="#name"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    by_field = {r.fieldId: r for r in results}
+    assert by_field["#company"].jsonKey == "company_name"
+    assert by_field["#company"].auto is True
+    assert by_field["#name"].jsonKey == "full_name"
+
+
+def test_gender_radio_field():
+    """Gender value should match radio field (ENUM_SELECT)."""
+    req = MatchRequest(
+        payload={"gender": "Male"},
+        fields=[_field(label="Gender", name="gender", type="radio", selector="#gender")],
+    )
+    results = apply_matching_skills(req)
+    assert len(results) == 1
+    assert results[0].jsonKey == "gender"
+    assert results[0].auto is True
+
+
+def test_income_currency_field():
+    """Income key should match a number field labeled 'Monthly Income'."""
+    req = MatchRequest(
+        payload={"monthly_income": "85000"},
+        fields=[_field(type="number", label="Monthly Income", name="monthly_income", selector="#income")],
+    )
+    results = apply_matching_skills(req)
+    assert len(results) == 1
+    assert results[0].jsonKey == "monthly_income"
+    assert results[0].auto is True

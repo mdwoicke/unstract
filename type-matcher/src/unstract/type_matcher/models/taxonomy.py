@@ -36,6 +36,7 @@ TYPE_COMPATIBILITY: dict[SemanticType, set[SemanticType]] = {
     SemanticType.NAME_FIRST: {SemanticType.NAME_FULL, SemanticType.TEXT},
     SemanticType.NAME_LAST: {SemanticType.NAME_FULL, SemanticType.TEXT},
     SemanticType.NAME_FULL: {SemanticType.NAME_FIRST, SemanticType.NAME_LAST, SemanticType.TEXT},
+    SemanticType.GENDER: {SemanticType.ENUM_SELECT, SemanticType.TEXT},
     SemanticType.ADDRESS_LINE: {SemanticType.TEXT, SemanticType.FREETEXT},
     SemanticType.ADDRESS_CITY: {SemanticType.TEXT},
     SemanticType.ADDRESS_STATE: {SemanticType.TEXT, SemanticType.ENUM_SELECT},

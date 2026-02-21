@@ -49,9 +49,6 @@ _KEY_PATTERNS: list[tuple[SemanticType, re.Pattern]] = [
     (SemanticType.NAME_LAST, re.compile(
         r"last.?name|surname|family.?name|lname", re.IGNORECASE
     )),
-    (SemanticType.NAME_FULL, re.compile(
-        r"full.?name|card.?holder|account.?holder|name$", re.IGNORECASE
-    )),
     (SemanticType.GENDER, re.compile(r"gender|sex$", re.IGNORECASE)),
     (SemanticType.ADDRESS_LINE, re.compile(
         r"address|street|addr|line[_\s]?[12]", re.IGNORECASE
@@ -64,6 +61,8 @@ _KEY_PATTERNS: list[tuple[SemanticType, re.Pattern]] = [
         r"zip|postal|post.?code", re.IGNORECASE
     )),
     (SemanticType.ADDRESS_COUNTRY, re.compile(r"country|nation", re.IGNORECASE)),
+    # COMPANY/JOB/ACCOUNT must come before NAME_FULL so "company_name" doesn't
+    # get caught by the greedy `name$` pattern in NAME_FULL.
     (SemanticType.COMPANY_NAME, re.compile(
         r"company|employer|organization|corp|business", re.IGNORECASE
     )),
@@ -72,6 +71,9 @@ _KEY_PATTERNS: list[tuple[SemanticType, re.Pattern]] = [
     )),
     (SemanticType.ACCOUNT_NUMBER, re.compile(
         r"account.?(?:no|num|number|#)|acct", re.IGNORECASE
+    )),
+    (SemanticType.NAME_FULL, re.compile(
+        r"full.?name|card.?holder|account.?holder|name$", re.IGNORECASE
     )),
     (SemanticType.CURRENCY, re.compile(
         r"amount|price|cost|fee|balance|total|premium|payment|salary|income",
@@ -96,10 +98,13 @@ class TypedValue(BaseModel):
 
 
 def _normalize_key(key: str) -> str:
-    """Extract last segment from dot-path, strip array indices."""
+    """Extract last segment from dot-path, split camelCase, strip array indices."""
     if "." in key:
         key = key[key.rfind(".") + 1:]
-    return re.sub(r"\[\d+\]", "", key)
+    key = re.sub(r"\[\d+\]", "", key)
+    # Split camelCase → "firstName" becomes "first_Name" → lowered later by regex flags
+    key = re.sub(r"([a-z])([A-Z])", r"\1_\2", key)
+    return key
 
 
 def infer_value_type(key: str, value: str | int | float | bool | None) -> TypedValue:
@@ -136,7 +141,8 @@ def infer_value_type(key: str, value: str | int | float | bool | None) -> TypedV
             # Disagree — key name is more trustworthy
             return TypedValue(key=key, value=value, semantic_type=key_type, confidence=0.85)
     elif key_type:
-        return TypedValue(key=key, value=value, semantic_type=key_type, confidence=0.8)
+        # Key name alone is a strong signal (intentional naming like first_name, email, etc.)
+        return TypedValue(key=key, value=value, semantic_type=key_type, confidence=0.85)
     elif value_type:
         return TypedValue(key=key, value=value, semantic_type=value_type, confidence=0.9)
 

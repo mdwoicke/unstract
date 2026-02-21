@@ -63,13 +63,17 @@ _LABEL_PATTERNS: list[tuple[SemanticType, re.Pattern]] = [
         r"account.?(?:no|num|number|#)|acct", re.IGNORECASE
     )),
     (SemanticType.CURRENCY, re.compile(
-        r"amount|price|cost|fee|balance|total|premium|salary",
+        r"amount|price|cost|fee|balance|total|premium|salary|income|payment",
         re.IGNORECASE,
     )),
     (SemanticType.PERCENTAGE, re.compile(
         r"rate|percent|pct|ratio|markup|discount", re.IGNORECASE
     )),
     (SemanticType.URL, re.compile(r"url|website|link", re.IGNORECASE)),
+    (SemanticType.BOOLEAN, re.compile(
+        r"is[_\s]|has[_\s]|enabled|active|flag|agree|accept|consent",
+        re.IGNORECASE,
+    )),
 ]
 
 
@@ -128,7 +132,7 @@ def infer_field_type(field: FieldDescriptor) -> TypedField:
             return TypedField(
                 selector=field.selector,
                 semantic_type=stype,
-                confidence=0.75,
+                confidence=0.80,
             )
 
     return TypedField(
