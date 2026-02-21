@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Unstract All-In-One Startup Script
@@ -326,6 +326,9 @@ docker cp "$PROMPT_SRC\utils\claude_preprocessor.py"  "${psContainer}:${psContai
 docker cp "$PROMPT_SRC\utils\pdf_vision.py"           "${psContainer}:${psContainerBase}/utils/pdf_vision.py"
 docker cp "$PROMPT_SRC\utils\pdf_form_fields.py"      "${psContainer}:${psContainerBase}/utils/pdf_form_fields.py"
 
+Write-Host "  Installing PyMuPDF in prompt-service venv..." -ForegroundColor DarkGray
+docker exec $psContainer uv pip install --python /app/.venv/bin/python pymupdf 2>&1 | Select-Object -Last 1
+
 docker restart $psContainer
 
 Write-Host "  Waiting for prompt-service to recover after restart..." -ForegroundColor DarkGray
@@ -390,7 +393,7 @@ if (-not (Test-Path $CERT_PEM) -or -not (Test-Path $KEY_PEM)) {
 
     $opensslExe = "C:\Program Files\Git\mingw64\bin\openssl.exe"
     if (-not (Test-Path $opensslExe)) {
-        $opensslExe = (Get-Command openssl -ErrorAction SilentlyContinue)?.Source
+        $opensslExe = (Get-Command openssl -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue)
     }
 
     if ($opensslExe) {
@@ -439,6 +442,60 @@ if ($nodeProc -and -not $nodeProc.HasExited) {
 } else {
     Write-Warn "Test UI server process exited unexpectedly — check node/server.js"
     $uiStatus = "NOT RUNNING"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 10b — Start Type Matcher Service (Pydantic, port 3005)
+# ─────────────────────────────────────────────────────────────────────────────
+Write-Step "Starting Type Matcher service on port 3005"
+
+$TYPE_MATCHER_DIR = "$UNSTRACT_ROOT\type-matcher"
+$tmStatus = "NOT RUNNING"
+
+# Kill anything on port 3005
+$conns3005 = Get-NetTCPConnection -LocalPort 3005 -ErrorAction SilentlyContinue
+if ($conns3005) {
+    foreach ($conn in $conns3005) {
+        Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
+}
+
+if (Test-Path "$TYPE_MATCHER_DIR\pyproject.toml") {
+    # Ensure venv and deps are installed
+    Push-Location $TYPE_MATCHER_DIR
+    python -m uv sync 2>&1 | Out-Null
+    Pop-Location
+
+    $tmProc = Start-Process "python" `
+        -ArgumentList "-m uv run --directory `"$TYPE_MATCHER_DIR`" uvicorn unstract.type_matcher.app:create_app --factory --host 0.0.0.0 --port 3005" `
+        -WindowStyle Hidden `
+        -PassThru
+
+    Start-Sleep -Seconds 3
+
+    # Health check
+    try {
+        $tmHealth = Invoke-RestMethod -Uri "http://localhost:3005/health" -TimeoutSec 5
+        if ($tmHealth.status -eq "ok") {
+            Write-OK "Type Matcher service running on port 3005 (PID $($tmProc.Id))"
+            $tmStatus = "Running on http://localhost:3005"
+        } else {
+            Write-Warn "Type Matcher health check returned unexpected response"
+            $tmStatus = "HEALTH CHECK FAILED"
+        }
+    } catch {
+        if ($tmProc -and -not $tmProc.HasExited) {
+            Write-Warn "Type Matcher started but health check failed — may still be initializing"
+            $tmStatus = "Starting (PID $($tmProc.Id))"
+        } else {
+            Write-Warn "Type Matcher process exited. Check type-matcher/ setup."
+            $tmStatus = "NOT RUNNING"
+        }
+    }
+} else {
+    Write-Warn "type-matcher/ directory not found — skipping"
+    $tmStatus = "NOT INSTALLED"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -497,7 +554,8 @@ $registryStatus = if ($registryErrors -gt 0) { "WARNING ($registryErrors error(s
 Write-Host " Docker Services: $runningContainers/$totalContainers running"
 Write-Host " Tool Registry:   $registryStatus"
 Write-Host " CORS:            $corsStatus"
-Write-Host " Vision patches:  Applied to prompt-service"
+Write-Host " Vision patches:  Applied to prompt-service (PyMuPDF installed)"
+Write-Host " Type Matcher:    $tmStatus"
 Write-Host " LM Studio:       $lmStatus"
 Write-Host " Test UI Server:  $uiStatus"
 Write-Host "============================================================" -ForegroundColor Cyan

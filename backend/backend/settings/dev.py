@@ -16,10 +16,11 @@ CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS + [
     "http://127.0.0.1:3000",
     "http://frontend.unstract.localhost",
     "http://localhost:5500",
-    "http://192.168.1.199:5500",
-    "http://192.168.1.199:5555",
+    "http://192.168.1.221:5500",
+    "http://192.168.1.221:5555",
     "http://192.168.1.221:5500",
     "http://192.168.1.221:5555",
     "http://192.168.1.221:8000",
+    "https://192.168.1.221:5555",
     # Other allowed origins if needed
 ]

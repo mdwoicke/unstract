@@ -32,6 +32,7 @@ class RetrievalService:
         """Try to locate and read the original PDF from storage.
 
         Searches multiple known path patterns:
+        0. TOOL (API deployment): read SOURCE sibling of EXTRACT
         1. IDE (Prompt Studio): derive from extract text path
         2. IDE fallback: construct from tool_id + doc_name
         3. TOOL (API deployment): try permanent storage with tool_id
@@ -44,6 +45,37 @@ class RetrievalService:
             "doc_name=%s tool_id=%s execution_source=%s",
             file_path, doc_name, tool_id, execution_source,
         )
+        # Strategy 0: Read SOURCE file from execution directory
+        # In API deployment mode, the execution directory contains:
+        #   {file_exec_id}/SOURCE   -> original uploaded file
+        #   {file_exec_id}/EXTRACT  -> extracted text
+        #   {file_exec_id}/METADATA.json -> metadata with source_name
+        # The file_path typically ends with "/EXTRACT"
+        if file_path.endswith("/EXTRACT") or file_path.endswith("/extract"):
+            base_dir = file_path.rsplit("/", 1)[0]
+            source_path = f"{base_dir}/SOURCE"
+            try:
+                fs = FileUtils.get_fs_instance(
+                    execution_source=execution_source,
+                )
+                data = fs.read(path=source_path, mode="rb")
+                if data and data[:5] == b"%PDF-":
+                    app.logger.info(
+                        "[Vision] Found PDF via SOURCE path: %s (%d bytes)",
+                        source_path, len(data),
+                    )
+                    return data
+                elif data:
+                    app.logger.debug(
+                        "[Vision] SOURCE file is not a PDF (magic: %s)",
+                        data[:5],
+                    )
+            except Exception as e:
+                app.logger.debug(
+                    "[Vision] Strategy 0: SOURCE not found at %s: %s",
+                    source_path, e,
+                )
+
         # Strategy 1: Derive from the extracted text path
         # e.g. .../EXTRACT/doc.txt -> .../doc.pdf
         _extract_sep = None
@@ -158,8 +190,59 @@ class RetrievalService:
                         "[Vision] Strategy 3: storage error: %s", e,
                     )
 
-        app.logger.debug("[Vision] PDF not found in any location")
+        app.logger.info(
+            "[Vision] PDF not found in any location for file_path=%s doc_name=%s",
+            file_path, doc_name,
+        )
         return None
+
+    @staticmethod
+    def _flatten_pdf(pdf_bytes: bytes) -> bytes:
+        """Flatten AcroForm fields into the static text/content layer.
+
+        Digitally-filled PDFs keep form values in an interactive AcroForm
+        layer that is invisible to text-extraction tools. Flattening bakes
+        those values into the page content stream so they become visible to
+        both OCR and vision-based extraction.
+
+        Returns:
+            Flattened PDF bytes, or the original bytes on error.
+        """
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            app.logger.debug("[Flatten] PyMuPDF not available — skipping")
+            return pdf_bytes
+
+        try:
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            needs_flatten = False
+
+            for page in doc:
+                # Check if the page has widget (form field) annotations
+                widgets = list(page.widgets()) if hasattr(page, "widgets") else []
+                if widgets:
+                    needs_flatten = True
+                    for widget in widgets:
+                        # Render the widget appearance into the page content
+                        widget.update()
+                page.clean_contents()
+
+            if not needs_flatten:
+                doc.close()
+                app.logger.debug("[Flatten] No form widgets found — skipping")
+                return pdf_bytes
+
+            flat_bytes = doc.tobytes(deflate=True, garbage=3, clean=True)
+            doc.close()
+            app.logger.info(
+                "[Flatten] PDF flattened: %d -> %d bytes",
+                len(pdf_bytes), len(flat_bytes),
+            )
+            return flat_bytes
+        except Exception as e:
+            app.logger.warning("[Flatten] Failed to flatten PDF: %s", e)
+            return pdf_bytes
 
     @staticmethod
     def perform_retrieval(  # type:ignore
@@ -214,6 +297,10 @@ class RetrievalService:
             tool_id=tool_id,
         )
         if pdf_bytes:
+            # Flatten AcroForm fields into static text layer so they are
+            # visible to both text extraction and vision rendering.
+            pdf_bytes = RetrievalService._flatten_pdf(pdf_bytes)
+
             # Extract AcroForm field values and prepend to context.
             # Handles digitally-filled PDFs where field values live in the
             # AcroForm data layer rather than the text/OCR layer.

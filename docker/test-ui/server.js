@@ -39,8 +39,8 @@ function proxyRequest(req, res) {
   });
 
   proxyReq.on('error', (err) => {
-    res.writeHead(502);
-    res.end('Proxy error: ' + err.message);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Proxy error: ' + err.message }));
   });
 
   req.pipe(proxyReq);

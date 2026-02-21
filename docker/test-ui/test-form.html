@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sample Application Form - Extension Test</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080e1c;
+    --surface: #0d1929;
+    --surface2: #122035;
+    --border: #1c3052;
+    --text: #dde5f5;
+    --text-dim: #7888a8;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --error: #f87171;
+    --radius: 8px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 24px;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  header p { color: var(--text-dim); font-size: 14px; }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .section h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="url"],
+  textarea,
+  select {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+  }
+
+  textarea { resize: vertical; min-height: 80px; }
+
+  select { cursor: pointer; }
+  select option { background: var(--surface2); color: var(--text); }
+
+  .radio-group, .checkbox-group {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .radio-group label, .checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  input[type="radio"], input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+  }
+
+  .actions {
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  .actions button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 32px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .actions button:hover { background: var(--accent-hover); }
+
+  .hint {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .hint strong { color: var(--text); }
+
+  @media (max-width: 640px) {
+    .row, .row-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Credit Card Application Form</h1>
+    <p>Sample form for testing Unstract Form Filler extension</p>
+  </header>
+
+  <div class="hint">
+    <strong>How to test:</strong> Process a document in the
+    <a href="/" style="color:var(--accent);">Unstract UI</a>, then come back here
+    and click <strong>Fill Form</strong> in the extension popup. Fields matched with
+    high confidence will be auto-filled with a gold border.
+  </div>
+
+  <form id="applicationForm" autocomplete="off" onsubmit="return false;">
+
+    <!-- ── Personal Information ── -->
+    <div class="section">
+      <h2>Personal Information</h2>
+      <div class="row">
+        <div class="field">
+          <label for="first_name">First Name</label>
+          <input type="text" id="first_name" name="first_name" placeholder="John">
+        </div>
+        <div class="field">
+          <label for="last_name">Last Name</label>
+          <input type="text" id="last_name" name="last_name" placeholder="Doe">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="middle_name">Middle Name</label>
+          <input type="text" id="middle_name" name="middle_name" placeholder="Michael">
+        </div>
+        <div class="field">
+          <label for="date_of_birth">Date of Birth</label>
+          <input type="date" id="date_of_birth" name="date_of_birth">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="gender">Gender</label>
+          <div class="radio-group">
+            <label><input type="radio" name="gender" value="male"> Male</label>
+            <label><input type="radio" name="gender" value="female"> Female</label>
+            <label><input type="radio" name="gender" value="other"> Other</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="marital_status">Marital Status</label>
+          <select id="marital_status" name="marital_status">
+            <option value="">Select...</option>
+            <option value="single">Single</option>
+            <option value="married">Married</option>
+            <option value="divorced">Divorced</option>
+            <option value="widowed">Widowed</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="nationality">Nationality</label>
+          <input type="text" id="nationality" name="nationality" placeholder="Filipino">
+        </div>
+        <div class="field">
+          <label for="id_number">Government ID Number</label>
+          <input type="text" id="id_number" name="id_number" placeholder="1234-5678-9012">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Contact Information ── -->
+    <div class="section">
+      <h2>Contact Information</h2>
+      <div class="row">
+        <div class="field">
+          <label for="email_address">Email Address</label>
+          <input type="email" id="email_address" name="email_address" placeholder="john.doe@example.com">
+        </div>
+        <div class="field">
+          <label for="mobile_number">Mobile Number</label>
+          <input type="tel" id="mobile_number" name="mobile_number" placeholder="+63 917 123 4567">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="home_phone">Home Phone</label>
+          <input type="tel" id="home_phone" name="home_phone" placeholder="(02) 8123-4567">
+        </div>
+        <div class="field">
+          <label for="work_phone">Work Phone</label>
+          <input type="tel" id="work_phone" name="work_phone" placeholder="(02) 8987-6543">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Home Address ── -->
+    <div class="section">
+      <h2>Home Address</h2>
+      <div class="field">
+        <label for="home_address_line1">Address Line 1</label>
+        <input type="text" id="home_address_line1" name="home_address_line1" placeholder="123 Main Street, Apt 4B">
+      </div>
+      <div class="field">
+        <label for="home_address_line2">Address Line 2</label>
+        <input type="text" id="home_address_line2" name="home_address_line2" placeholder="Barangay San Antonio">
+      </div>
+      <div class="row-3">
+        <div class="field">
+          <label for="city">City / Municipality</label>
+          <input type="text" id="city" name="city" placeholder="Makati City">
+        </div>
+        <div class="field">
+          <label for="province">Province / State</label>
+          <input type="text" id="province" name="province" placeholder="Metro Manila">
+        </div>
+        <div class="field">
+          <label for="zip_code">ZIP / Postal Code</label>
+          <input type="text" id="zip_code" name="zip_code" placeholder="1234">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="country">Country</label>
+          <select id="country" name="country">
+            <option value="">Select...</option>
+            <option value="PH">Philippines</option>
+            <option value="US">United States</option>
+            <option value="SG">Singapore</option>
+            <option value="AE">United Arab Emirates</option>
+            <option value="JP">Japan</option>
+            <option value="AU">Australia</option>
+            <option value="GB">United Kingdom</option>
+            <option value="CA">Canada</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="years_at_address">Years at Current Address</label>
+          <input type="number" id="years_at_address" name="years_at_address" placeholder="5" min="0" max="99">
+        </div>
+      </div>
+      <div class="field">
+        <label for="residence_type">Residence Type</label>
+        <div class="radio-group">
+          <label><input type="radio" name="residence_type" value="owned"> Owned</label>
+          <label><input type="radio" name="residence_type" value="rented"> Rented</label>
+          <label><input type="radio" name="residence_type" value="living_with_relatives"> Living with Relatives</label>
+          <label><input type="radio" name="residence_type" value="company_provided"> Company Provided</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Employment Information ── -->
+    <div class="section">
+      <h2>Employment Information</h2>
+      <div class="row">
+        <div class="field">
+          <label for="employment_status">Employment Status</label>
+          <select id="employment_status" name="employment_status">
+            <option value="">Select...</option>
+            <option value="employed">Employed</option>
+            <option value="self_employed">Self-Employed</option>
+            <option value="business_owner">Business Owner</option>
+            <option value="retired">Retired</option>
+            <option value="student">Student</option>
+            <option value="unemployed">Unemployed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="company_name">Company / Employer Name</label>
+          <input type="text" id="company_name" name="company_name" placeholder="Acme Corporation">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="job_title">Job Title / Position</label>
+          <input type="text" id="job_title" name="job_title" placeholder="Senior Software Engineer">
+        </div>
+        <div class="field">
+          <label for="department">Department</label>
+          <input type="text" id="department" name="department" placeholder="Information Technology">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="years_employed">Years with Current Employer</label>
+          <input type="number" id="years_employed" name="years_employed" placeholder="3" min="0" max="60">
+        </div>
+        <div class="field">
+          <label for="employer_phone">Employer Phone</label>
+          <input type="tel" id="employer_phone" name="employer_phone" placeholder="(02) 8555-1234">
+        </div>
+      </div>
+      <div class="field">
+        <label for="office_address">Office Address</label>
+        <input type="text" id="office_address" name="office_address" placeholder="BGC One Corporate Centre, 32nd Street, Taguig City">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="tin_number">TIN / Tax ID Number</label>
+          <input type="text" id="tin_number" name="tin_number" placeholder="123-456-789-000">
+        </div>
+        <div class="field">
+          <label for="sss_number">SSS / Social Security Number</label>
+          <input type="text" id="sss_number" name="sss_number" placeholder="33-1234567-8">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Financial Information ── -->
+    <div class="section">
+      <h2>Financial Information</h2>
+      <div class="row">
+        <div class="field">
+          <label for="monthly_income">Monthly Gross Income</label>
+          <input type="number" id="monthly_income" name="monthly_income" placeholder="85000" min="0">
+        </div>
+        <div class="field">
+          <label for="other_income">Other Monthly Income</label>
+          <input type="number" id="other_income" name="other_income" placeholder="15000" min="0">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="income_source">Source of Other Income</label>
+          <input type="text" id="income_source" name="income_source" placeholder="Rental, freelance, etc.">
+        </div>
+        <div class="field">
+          <label for="credit_limit_requested">Requested Credit Limit</label>
+          <input type="number" id="credit_limit_requested" name="credit_limit_requested" placeholder="100000" min="0">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="existing_credit_cards">Number of Existing Credit Cards</label>
+          <select id="existing_credit_cards" name="existing_credit_cards">
+            <option value="">Select...</option>
+            <option value="0">None</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4_plus">4 or more</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="card_type">Preferred Card Type</label>
+          <select id="card_type" name="card_type">
+            <option value="">Select...</option>
+            <option value="classic">Classic</option>
+            <option value="gold">Gold</option>
+            <option value="platinum">Platinum</option>
+            <option value="rewards">Rewards</option>
+            <option value="cashback">Cash Back</option>
+            <option value="travel">Travel</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Bank Account Details ── -->
+    <div class="section">
+      <h2>Bank Account Details</h2>
+      <div class="row">
+        <div class="field">
+          <label for="bank_name">Bank Name</label>
+          <input type="text" id="bank_name" name="bank_name" placeholder="BDO Unibank">
+        </div>
+        <div class="field">
+          <label for="account_number">Account Number</label>
+          <input type="text" id="account_number" name="account_number" placeholder="0012-3456-7890">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="account_type">Account Type</label>
+          <select id="account_type" name="account_type">
+            <option value="">Select...</option>
+            <option value="savings">Savings</option>
+            <option value="checking">Checking / Current</option>
+            <option value="payroll">Payroll</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="years_with_bank">Years with Bank</label>
+          <input type="number" id="years_with_bank" name="years_with_bank" placeholder="7" min="0" max="80">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Emergency Contact ── -->
+    <div class="section">
+      <h2>Emergency Contact / Reference</h2>
+      <div class="row">
+        <div class="field">
+          <label for="emergency_contact_name">Contact Name</label>
+          <input type="text" id="emergency_contact_name" name="emergency_contact_name" placeholder="Maria Doe">
+        </div>
+        <div class="field">
+          <label for="emergency_contact_relationship">Relationship</label>
+          <select id="emergency_contact_relationship" name="emergency_contact_relationship">
+            <option value="">Select...</option>
+            <option value="spouse">Spouse</option>
+            <option value="parent">Parent</option>
+            <option value="sibling">Sibling</option>
+            <option value="friend">Friend</option>
+            <option value="colleague">Colleague</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="emergency_contact_phone">Contact Phone</label>
+          <input type="tel" id="emergency_contact_phone" name="emergency_contact_phone" placeholder="+63 918 765 4321">
+        </div>
+        <div class="field">
+          <label for="emergency_contact_address">Contact Address</label>
+          <input type="text" id="emergency_contact_address" name="emergency_contact_address" placeholder="456 Oak Ave, Quezon City">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Additional Information ── -->
+    <div class="section">
+      <h2>Additional Information</h2>
+      <div class="field">
+        <label for="purpose_of_application">Purpose of Application</label>
+        <textarea id="purpose_of_application" name="purpose_of_application" placeholder="Describe your primary intended use for this credit card..."></textarea>
+      </div>
+      <div class="field">
+        <label>Add-on Services</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="addon_insurance" value="yes"> Credit Insurance</label>
+          <label><input type="checkbox" name="addon_rewards" value="yes"> Rewards Program</label>
+          <label><input type="checkbox" name="addon_ebanking" value="yes"> E-Banking Access</label>
+          <label><input type="checkbox" name="addon_supplementary" value="yes"> Supplementary Card</label>
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px;">
+        <label>
+          <input type="checkbox" name="terms_accepted" value="yes">
+          I agree to the Terms and Conditions and authorize verification of the information provided.
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit">Submit Application</button>
+    </div>
+
+  </form>
+</div>
+
+</body>
+</html>

@@ -1,6 +1,7 @@
 """Basic Controller."""
 
 import logging
+import os
 from io import BytesIO
 from typing import Any
 
@@ -115,6 +116,11 @@ def process() -> Any:
         "unstructured-api-key": unstructured_api_key,
     }
     payload = form_data
+
+    # Inject Unstructured IO strategy from env if not already in the payload
+    strategy = os.environ.get("UNSTRUCTURED_STRATEGY")
+    if strategy and "strategy" not in payload:
+        payload["strategy"] = strategy
 
     response = requests.request(
         "POST",

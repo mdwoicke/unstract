@@ -16,6 +16,7 @@ dependencies = [
     "json-repair~=0.42.0",
     "requests>=2.28,<3.0",
     "redis>=5.0.3,<5.3",
+    "pymupdf>=1.24",
     "unstract-core",
     "unstract-flags",
     "unstract-sdk1[aws,gcs,azure]"

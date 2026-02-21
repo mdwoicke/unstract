@@ -345,6 +345,47 @@
 
   .copy-btn:hover { background: var(--border); color: var(--text); }
 
+  .fill-form-btn {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .fill-form-btn:hover {
+    background: rgba(245, 158, 11, 0.22);
+    color: #d97706;
+  }
+
+  .fill-form-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .fill-form-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: #1f2937;
+    color: #f9fafb;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .fill-form-tooltip.visible { opacity: 1; }
+
   .json-output {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -711,6 +752,11 @@
     <div class="left-pane">
       <div class="pane-header">
         <span class="tab active" id="tabResults">Results</span>
+        <span class="spacer"></span>
+        <button class="fill-form-btn" id="fillFormBtnHeader" title="Send extracted data to Chrome extension for form auto-fill" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Fill Form
+        </button>
       </div>
       <div class="left-content">
 
@@ -759,10 +805,17 @@
         <div class="results-panel" id="resultsPanel">
           <div class="results-header">
             <div class="panel-title" style="margin-bottom:0">Extracted Data</div>
-            <button class="copy-btn" id="copyBtn">Copy JSON</button>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="fill-form-btn" id="fillFormBtn" title="Send extracted data to Chrome extension for form auto-fill">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Fill Form
+              </button>
+              <button class="copy-btn" id="copyBtn">Copy JSON</button>
+            </div>
           </div>
           <div class="json-output" id="jsonOutput"></div>
         </div>
+        <div class="fill-form-tooltip" id="fillFormTooltip"></div>
       </div>
     </div>
 
@@ -804,6 +857,7 @@
   const resultsPanel = document.getElementById('resultsPanel');
   const jsonOutput = document.getElementById('jsonOutput');
   const copyBtn = document.getElementById('copyBtn');
+  const fillFormBtnHeader = document.getElementById('fillFormBtnHeader');
   const apiUrl = document.getElementById('apiUrl');
   const apiKey = document.getElementById('apiKey');
   const previewPlaceholder = document.getElementById('previewPlaceholder');
@@ -949,6 +1003,7 @@
     if (!url || !key) { alert('Please fill in API URL and Key.'); return; }
 
     resultsPanel.classList.remove('visible');
+    fillFormBtnHeader.style.display = 'none';  // hide Fill Form until new results
     submitBtn.disabled = true;
     showStatus('pending', 'Uploading document...');
     startElapsed();
@@ -1002,7 +1057,18 @@
         headers: { 'Authorization': 'Bearer ' + key },
       });
 
-      const data = await res.json();
+      // Handle non-JSON responses (e.g. proxy errors) gracefully
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Non-JSON response — likely a proxy error, keep polling
+        console.warn('[Poll] Non-JSON response (' + res.status + '):', text.slice(0, 200));
+        showStatus('pending', 'Processing... (waiting for backend)');
+        return;
+      }
+
       const msg = data.message || data;
       const status = (msg.execution_status || data.status || '').toUpperCase();
 
@@ -1029,12 +1095,15 @@
         }
         submitBtn.disabled = false;
       } else if (!res.ok) {
-        throw new Error('GET ' + res.status + ': ' + JSON.stringify(data));
+        // 422 with no recognized status = still processing, keep polling
+        console.warn('[Poll] Unrecognized status (' + res.status + '):', JSON.stringify(data).slice(0, 200));
+        showStatus('pending', 'Processing... (waiting)');
+        return;
       }
     } catch (err) {
-      stopTimers();
-      showStatus('error', 'Poll error: ' + err.message);
-      submitBtn.disabled = false;
+      // Network error — don't stop polling, backend may be temporarily busy
+      console.warn('[Poll] Fetch error:', err.message);
+      showStatus('pending', 'Processing... (retrying)');
     }
   }
 
@@ -1059,7 +1128,10 @@
     rawJson = JSON.stringify(cleaned, null, 2);
     jsonOutput.innerHTML = highlightJson(rawJson);
     resultsPanel.classList.add('visible');
+    fillFormBtnHeader.style.display = '';   // show Fill Form in pane header
     submitBtn.disabled = false;
+    // Scroll results into view so Fill Form / Copy JSON buttons are immediately visible
+    setTimeout(() => resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }
 
   function extractOutput(data) {
@@ -1121,6 +1193,85 @@
   function escapeHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+
+  // --- Fill Form (sends to Chrome extension via content script relay) ---
+  const fillFormBtn = document.getElementById('fillFormBtn');
+  const fillFormTooltip = document.getElementById('fillFormTooltip');
+
+  function showFillTooltip(msg, isError) {
+    fillFormTooltip.textContent = msg;
+    fillFormTooltip.className = 'fill-form-tooltip visible';
+    if (isError) fillFormTooltip.style.background = '#dc2626';
+    else fillFormTooltip.style.background = '#1f2937';
+    const rect = fillFormBtnHeader.getBoundingClientRect();
+    fillFormTooltip.style.top = (rect.bottom + 6) + 'px';
+    fillFormTooltip.style.left = rect.left + 'px';
+    setTimeout(() => { fillFormTooltip.className = 'fill-form-tooltip'; }, 2500);
+  }
+
+  const FILL_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Fill Form';
+
+  function doFillForm() {
+    if (!rawJson) return;
+
+    // Parse the displayed JSON to extract the output section
+    let parsed;
+    try { parsed = JSON.parse(rawJson); } catch (e) {
+      showFillTooltip('Failed to parse JSON', true);
+      return;
+    }
+
+    // Flatten nested output object into {key: value} pairs
+    function flattenJson(obj, prefix) {
+      prefix = prefix || '';
+      var result = {};
+      if (obj === null || obj === undefined) return result;
+      if (typeof obj !== 'object') { result[prefix] = obj; return result; }
+      if (Array.isArray(obj)) {
+        obj.forEach(function(item, i) {
+          Object.assign(result, flattenJson(item, prefix ? prefix + '[' + i + ']' : '[' + i + ']'));
+        });
+        return result;
+      }
+      for (var key in obj) {
+        if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+        var val = obj[key];
+        var fullKey = prefix ? prefix + '.' + key : key;
+        if (val !== null && typeof val === 'object') {
+          Object.assign(result, flattenJson(val, fullKey));
+        } else {
+          result[fullKey] = val;
+        }
+      }
+      return result;
+    }
+
+    // Extract output section if present
+    var dataToFlatten = parsed;
+    if (parsed && parsed.output) dataToFlatten = parsed.output;
+
+    var flatJson = flattenJson(dataToFlatten);
+    var keyCount = Object.keys(flatJson).length;
+
+    if (keyCount === 0) {
+      showFillTooltip('No fields found in JSON output', true);
+      return;
+    }
+
+    // Relay to extension via content script CustomEvent bridge
+    window.dispatchEvent(new CustomEvent('unstract:fillForm', {
+      detail: { payload: flatJson }
+    }));
+
+    showFillTooltip('✓ Sent ' + keyCount + ' fields to extension — navigate to a form page, then click "Fill This Page" in the extension popup', false);
+    [fillFormBtn, fillFormBtnHeader].forEach(btn => { btn.textContent = '✓ Sent!'; });
+    setTimeout(() => {
+      [fillFormBtn, fillFormBtnHeader].forEach(btn => { btn.innerHTML = FILL_SVG; });
+    }, 2000);
+  }
+
+  fillFormBtn.addEventListener('click', doFillForm);
+  fillFormBtnHeader.addEventListener('click', doFillForm);
 
   // --- Copy (with fallback for insecure contexts) ---
   copyBtn.addEventListener('click', () => {
