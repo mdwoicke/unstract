@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Unstract Form Filler",
+  "name": "MBN Form Filler",
   "version": "1.0.0",
-  "description": "Auto-fill web forms from Unstract document extraction results using AI field matching",
+  "description": "AI-powered form filler — auto-fill web forms from document extraction results",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -29,7 +29,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "Unstract Form Filler"
+    "default_title": "MBN Form Filler"
   },
   "permissions": ["activeTab", "contextMenus", "scripting", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],

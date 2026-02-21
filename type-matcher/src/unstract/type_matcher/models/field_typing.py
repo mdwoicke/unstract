@@ -35,6 +35,9 @@ _LABEL_PATTERNS: list[tuple[SemanticType, re.Pattern]] = [
     (SemanticType.NAME_FIRST, re.compile(
         r"first.?name|given.?name|fname", re.IGNORECASE
     )),
+    (SemanticType.NAME_MIDDLE, re.compile(
+        r"middle.?name|middle.?initial|mname|mi$", re.IGNORECASE
+    )),
     (SemanticType.NAME_LAST, re.compile(
         r"last.?name|surname|family.?name|lname", re.IGNORECASE
     )),

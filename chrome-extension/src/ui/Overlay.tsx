@@ -20,9 +20,16 @@ export interface OverlayProps {
   onClose: () => void
 }
 
+function hasValue(item: UnmappedItem): boolean {
+  if (item.value === null || item.value === undefined) return false
+  if (typeof item.value === 'string' && item.value.trim() === '') return false
+  return true
+}
+
 export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel, lastMapping, onSelect, onTab, onClose }: OverlayProps) {
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
+  const [showAll, setShowAll] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -35,16 +42,20 @@ export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel,
   // Reset selection when query changes
   useEffect(() => setSelectedIdx(0), [query])
 
-  const filteredUnmapped = useMemo(() => {
-    if (!query) return unmapped
+  // Apply value filter first, then search query
+  const visibleUnmapped = useMemo(() => {
+    const base = showAll ? unmapped : unmapped.filter(hasValue)
+    if (!query) return base
     const q = query.toLowerCase()
-    return unmapped.filter(
+    return base.filter(
       (u) =>
         u.key.toLowerCase().includes(q) ||
         toFriendlyName(u.key).toLowerCase().includes(q) ||
         String(u.value).toLowerCase().includes(q)
     )
-  }, [unmapped, query])
+  }, [unmapped, query, showAll])
+
+  const withValueCount = useMemo(() => unmapped.filter(hasValue).length, [unmapped])
 
   // Top suggestions (from AI ranking), filtered out of unmapped to avoid duplication
   const topSuggestions = useMemo(() => {
@@ -57,14 +68,14 @@ export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel,
 
   // Combined list for keyboard nav
   const allItems: Array<UnmappedItem & { isSuggested?: boolean }> = useMemo(() => {
-    if (query) return filteredUnmapped
+    if (query) return visibleUnmapped
     const suggestedKeys = new Set(topSuggestions.map(s => s.key))
-    const rest = filteredUnmapped.filter(u => !suggestedKeys.has(u.key))
+    const rest = visibleUnmapped.filter(u => !suggestedKeys.has(u.key))
     return [
       ...topSuggestions.map(s => ({ ...s, isSuggested: true })),
       ...rest,
     ]
-  }, [filteredUnmapped, topSuggestions, query])
+  }, [visibleUnmapped, topSuggestions, query])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -122,8 +133,24 @@ export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel,
           {fieldLabel && (
             <div className="overlay-field-label">{fieldLabel}</div>
           )}
-          <div className="overlay-title">
-            Unstract · {unmapped.length} field{unmapped.length !== 1 ? 's' : ''} remaining
+          <div className="overlay-title-row">
+            <span className="overlay-title">
+              {unmapped.length} field{unmapped.length !== 1 ? 's' : ''} remaining
+            </span>
+            <div className="overlay-toggle">
+              <button
+                className={`overlay-toggle-btn${!showAll ? ' active' : ''}`}
+                onClick={() => { setShowAll(false); setSelectedIdx(0) }}
+              >
+                With values ({withValueCount})
+              </button>
+              <button
+                className={`overlay-toggle-btn${showAll ? ' active' : ''}`}
+                onClick={() => { setShowAll(true); setSelectedIdx(0) }}
+              >
+                All
+              </button>
+            </div>
           </div>
           <input
             ref={searchRef}

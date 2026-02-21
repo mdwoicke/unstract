@@ -63,6 +63,12 @@ export function injectValue(
 function injectText(el: HTMLInputElement | HTMLTextAreaElement, value: string): boolean {
   if (!value) return false
 
+  // Safety net: if this is actually a date input, delegate to injectDate
+  // (can happen when type changes after field extraction)
+  if (el instanceof HTMLInputElement && (el.type === 'date' || el.type === 'datetime-local' || el.type === 'month')) {
+    return injectDate(el, value)
+  }
+
   // React uses a property descriptor to intercept assignments
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     Object.getPrototypeOf(el), 'value'
@@ -353,11 +359,15 @@ export function injectHighlightStyles(): void {
   const style = document.createElement('style')
   style.id = STYLE_ID
   style.textContent = `
+    @keyframes unstract-fill-flash {
+      0%   { background-color: rgba(16, 185, 129, 0.25); outline-color: #10b981; }
+      100% { background-color: rgba(245, 158, 11, 0.06); outline-color: #f59e0b; }
+    }
     [${AI_FILLED_ATTR}="true"] {
       outline: 2px solid #f59e0b !important;
       outline-offset: 1px !important;
       background-color: rgba(245, 158, 11, 0.06) !important;
-      transition: outline 0.2s ease !important;
+      animation: unstract-fill-flash 0.6s ease-out !important;
     }
   `
   document.head.appendChild(style)

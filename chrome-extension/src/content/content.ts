@@ -127,12 +127,14 @@ function setup() {
     // Show progress bar
     if (!progressBar) progressBar = new ProgressBar()
     progressBar.update(5, 'Scanning form fields\u2026')
+    chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'scanning', text: 'Scanning form fields\u2026', percent: 5 }).catch(() => {})
 
     try {
       const state: ExtensionState = await chrome.runtime.sendMessage({ type: 'GET_STATE' })
       if (!state?.payload) {
         document.documentElement.setAttribute('data-unstract-fill', 'no-payload')
         progressBar.error('No data loaded — open the popup to load JSON first')
+        chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'error', text: 'No data loaded', percent: 0 }).catch(() => {})
         return { error: 'No payload loaded' }
       }
 
@@ -163,6 +165,7 @@ function setup() {
       }
 
       progressBar.update(20, `Found ${fields.length} fields — matching with AI\u2026`)
+      chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'matching', text: `Matching ${fields.length} fields with AI\u2026`, percent: 20 }).catch(() => {})
       return await runMatching(fields)
     } catch (err) {
       progressBar?.error('Fill failed — see console for details')
@@ -191,17 +194,29 @@ function setup() {
     const topMatches = result.matches.slice(0, 5)
     console.log(`[Unstract] Auto matches: ${autoMatches.length}, top scores:`, topMatches.map(m => `${m.fieldId}←${m.jsonKey}(${m.confidence},auto=${m.auto})`))
 
-    progressBar?.update(75, `Filling ${autoMatches.length} matched fields\u2026`)
+    // Collect fillable matches (skip empty/null values)
+    const fillable = autoMatches.filter(m => {
+      const v = m.jsonValue
+      if (v === null || v === undefined) return false
+      if (typeof v === 'string' && v.trim() === '') return false
+      return true
+    })
 
-    // Auto-fill high-confidence matches (skip empty/null values)
+    progressBar?.update(75, 'Filling matched fields\u2026', `0 / ${fillable.length}`)
+
+    // Auto-fill with per-field progress
     capturedMappings.clear()
     let filledCount = 0
-    for (const match of result.matches) {
-      if (!match.auto) continue
+    for (let i = 0; i < fillable.length; i++) {
+      const match = fillable[i]
       const v = match.jsonValue
-      if (v === null || v === undefined) continue
-      if (typeof v === 'string' && v.trim() === '') continue
       console.log(`[Unstract] Injecting: selector="${match.fieldId}" value="${v}" (${typeof v})`)
+
+      // Update progress bar + popup for each field
+      const pct = 60 + Math.round(((i + 1) / fillable.length) * 35)
+      progressBar?.update(pct, 'Filling matched fields\u2026', `${i + 1} / ${fillable.length}`)
+      chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'filling', text: `Filling field ${i + 1} of ${fillable.length}\u2026`, percent: pct, current: i + 1, total: fillable.length }).catch(() => {})
+
       const ok = injectValue(match.fieldId, v)
       if (!ok) console.warn(`[Unstract] FAILED to inject: selector="${match.fieldId}" value="${v}"`)
       if (ok) {
@@ -214,6 +229,11 @@ function setup() {
           fieldLabel: fd?.label ?? '', fieldType: fd?.type ?? '',
           jsonKey: match.jsonKey, source: 'auto', confidence: match.confidence,
         })
+      }
+
+      // Brief yield so the browser can paint the field flash animation
+      if (fillable.length > 3 && i < fillable.length - 1) {
+        await new Promise(r => setTimeout(r, 40))
       }
     }
 
@@ -235,6 +255,7 @@ function setup() {
 
     if (unmappedItems.length === 0) {
       progressBar?.complete(`Done — filled ${filledCount} fields`)
+      chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'done', text: `Filled ${filledCount} fields`, percent: 100 }).catch(() => {})
       showTemplateSaveToast(filledCount)
       return { filledCount, unmappedCount: 0 }
     }
@@ -243,6 +264,7 @@ function setup() {
       `Filled ${filledCount} fields, ${unmappedItems.length} need manual review`,
       3500,
     )
+    chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'done', text: `Filled ${filledCount} fields, ${unmappedItems.length} need review`, percent: 100 }).catch(() => {})
     showTemplateSaveToast(filledCount)
 
     // Mount overlay and attach focus listeners to UN-filled fields only

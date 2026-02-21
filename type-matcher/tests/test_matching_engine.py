@@ -161,3 +161,90 @@ def test_income_currency_field():
     assert len(results) == 1
     assert results[0].jsonKey == "monthly_income"
     assert results[0].auto is True
+
+
+def test_full_name_splits_to_first_last():
+    """NAME_FULL 'John Doe' should auto-fill both first_name and last_name fields."""
+    req = MatchRequest(
+        payload={"contact_name": "John Doe"},
+        fields=[
+            _field(label="First Name", selector="#fname"),
+            _field(label="Last Name", selector="#lname"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    by_field = {r.fieldId: r for r in results}
+    assert by_field["#fname"].jsonValue == "John"
+    assert by_field["#fname"].auto is True
+    assert by_field["#lname"].jsonValue == "Doe"
+    assert by_field["#lname"].auto is True
+
+
+def test_full_name_with_middle_initial():
+    """NAME_FULL 'John A. Mitchell' should split into first/middle/last."""
+    req = MatchRequest(
+        payload={"contact_name": "John A. Mitchell"},
+        fields=[
+            _field(label="First Name", selector="#fname"),
+            _field(label="Middle Name", selector="#mname"),
+            _field(label="Last Name", selector="#lname"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    by_field = {r.fieldId: r for r in results}
+    assert by_field["#fname"].jsonValue == "John"
+    assert by_field["#fname"].auto is True
+    assert by_field["#mname"].jsonValue == "A."
+    assert by_field["#mname"].auto is True
+    assert by_field["#lname"].jsonValue == "Mitchell"
+    assert by_field["#lname"].auto is True
+
+
+def test_full_name_middle_initial_no_period():
+    """Middle initial without period ('John A Mitchell') should also be detected."""
+    req = MatchRequest(
+        payload={"contact_name": "John A Mitchell"},
+        fields=[
+            _field(label="First Name", selector="#fname"),
+            _field(label="Middle Name", selector="#mname"),
+            _field(label="Last Name", selector="#lname"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    by_field = {r.fieldId: r for r in results}
+    assert by_field["#fname"].jsonValue == "John"
+    assert by_field["#mname"].jsonValue == "A"
+    assert by_field["#lname"].jsonValue == "Mitchell"
+
+
+def test_full_name_no_middle_initial():
+    """Two-part name should still split as first/last with no middle."""
+    req = MatchRequest(
+        payload={"contact_name": "John Mitchell"},
+        fields=[
+            _field(label="First Name", selector="#fname"),
+            _field(label="Middle Name", selector="#mname"),
+            _field(label="Last Name", selector="#lname"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    by_field = {r.fieldId: r for r in results}
+    assert by_field["#fname"].jsonValue == "John"
+    assert by_field["#lname"].jsonValue == "Mitchell"
+    # Middle name field should not be filled (no middle initial detected)
+    assert "#mname" not in by_field or by_field.get("#mname", None) is None or not by_field.get("#mname").auto
+
+
+def test_dotpath_full_name_splits():
+    """Dot-path NAME_FULL key like 'owners[0].name' should also split."""
+    req = MatchRequest(
+        payload={"output.mbn.owners[0].name": "John Cabrera"},
+        fields=[
+            _field(label="First Name", selector="#fname"),
+            _field(label="Last Name", selector="#lname"),
+        ],
+    )
+    results = apply_matching_skills(req)
+    by_field = {r.fieldId: r for r in results}
+    assert by_field["#fname"].jsonValue == "John"
+    assert by_field["#lname"].jsonValue == "Cabrera"

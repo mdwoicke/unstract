@@ -212,7 +212,7 @@ Wait-ForCondition `
 Wait-ForCondition `
     -Condition {
         try {
-            (docker exec unstract-prompt-service curl -s -o /dev/null -w "%{http_code}" http://localhost:3003/health 2>&1) -eq '200'
+            (docker exec unstract-prompt-service python3 -c "from urllib.request import urlopen; print(urlopen('http://localhost:3003/health').status)" 2>&1) -match '200'
         } catch { $false }
     } `
     -Label "unstract-prompt-service" | Out-Null
@@ -325,6 +325,13 @@ docker cp "$PROMPT_SRC\services\answer_prompt.py"     "${psContainer}:${psContai
 docker cp "$PROMPT_SRC\utils\claude_preprocessor.py"  "${psContainer}:${psContainerBase}/utils/claude_preprocessor.py"
 docker cp "$PROMPT_SRC\utils\pdf_vision.py"           "${psContainer}:${psContainerBase}/utils/pdf_vision.py"
 docker cp "$PROMPT_SRC\utils\pdf_form_fields.py"      "${psContainer}:${psContainerBase}/utils/pdf_form_fields.py"
+docker cp "$PROMPT_SRC\controllers\answer_prompt.py"   "${psContainer}:${psContainerBase}/controllers/answer_prompt.py"
+docker cp "$PROMPT_SRC\helpers\postprocessor.py"        "${psContainer}:${psContainerBase}/helpers/postprocessor.py"
+
+# Ensure rentrolls_extractor package directory exists in container
+docker exec $psContainer mkdir -p "${psContainerBase}/services/rentrolls_extractor"
+docker exec $psContainer touch "${psContainerBase}/services/rentrolls_extractor/__init__.py"
+docker cp "$PROMPT_SRC\services\rentrolls_extractor\interface.py" "${psContainer}:${psContainerBase}/services/rentrolls_extractor/interface.py"
 
 Write-Host "  Installing PyMuPDF in prompt-service venv..." -ForegroundColor DarkGray
 docker exec $psContainer uv pip install --python /app/.venv/bin/python pymupdf 2>&1 | Select-Object -Last 1
@@ -335,7 +342,7 @@ Write-Host "  Waiting for prompt-service to recover after restart..." -Foregroun
 Wait-ForCondition `
     -Condition {
         try {
-            (docker exec unstract-prompt-service curl -s -o /dev/null -w "%{http_code}" http://localhost:3003/health 2>&1) -eq '200'
+            (docker exec unstract-prompt-service python3 -c "from urllib.request import urlopen; print(urlopen('http://localhost:3003/health').status)" 2>&1) -match '200'
         } catch { $false }
     } `
     -Label "unstract-prompt-service (post-restart)" | Out-Null

@@ -13,6 +13,7 @@ class SemanticType(str, Enum):
     URL = "URL"
     BOOLEAN = "BOOLEAN"
     NAME_FIRST = "NAME_FIRST"
+    NAME_MIDDLE = "NAME_MIDDLE"
     NAME_LAST = "NAME_LAST"
     NAME_FULL = "NAME_FULL"
     ADDRESS_LINE = "ADDRESS_LINE"
@@ -34,8 +35,9 @@ class SemanticType(str, Enum):
 # Exact match is always allowed; this defines additional compatible pairs.
 TYPE_COMPATIBILITY: dict[SemanticType, set[SemanticType]] = {
     SemanticType.NAME_FIRST: {SemanticType.NAME_FULL, SemanticType.TEXT},
+    SemanticType.NAME_MIDDLE: {SemanticType.NAME_FULL, SemanticType.TEXT},
     SemanticType.NAME_LAST: {SemanticType.NAME_FULL, SemanticType.TEXT},
-    SemanticType.NAME_FULL: {SemanticType.NAME_FIRST, SemanticType.NAME_LAST, SemanticType.TEXT},
+    SemanticType.NAME_FULL: {SemanticType.NAME_FIRST, SemanticType.NAME_MIDDLE, SemanticType.NAME_LAST, SemanticType.TEXT},
     SemanticType.GENDER: {SemanticType.ENUM_SELECT, SemanticType.TEXT},
     SemanticType.ADDRESS_LINE: {SemanticType.TEXT, SemanticType.FREETEXT},
     SemanticType.ADDRESS_CITY: {SemanticType.TEXT},

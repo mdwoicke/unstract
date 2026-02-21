@@ -5,6 +5,7 @@ from ..models.field_typing import FieldDescriptor, TypedField, infer_field_type
 from ..models.value_typing import TypedValue, infer_value_type
 from .base import MatchCandidate
 from .name_similarity import NameSimilaritySkill, _normalize, _field_context, _best_ratio
+from .name_split import NameSplitSkill
 from .option_matcher import OptionMatcherSkill
 from .type_alignment import TypeAlignmentSkill
 
@@ -13,6 +14,7 @@ SUGGEST_THRESHOLD = 0.35
 
 # Skill instances (stateless, reusable)
 _SKILLS = [
+    NameSplitSkill(),
     TypeAlignmentSkill(),
     NameSimilaritySkill(),
     OptionMatcherSkill(),

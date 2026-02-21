@@ -512,7 +512,7 @@ function TemplatesTab({ hasPayload }: { hasPayload: boolean }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'unstract-templates.json'
+    a.download = 'mbn-templates.json'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -693,6 +693,7 @@ function Popup() {
   const [pasteSuccess, setPasteSuccess] = useState(false)
   const [filling, setFilling] = useState(false)
   const [fillResult, setFillResult] = useState<{ filledCount?: number; unmappedCount?: number; error?: string } | null>(null)
+  const [fillProgress, setFillProgress] = useState<{ step: string; text: string; percent: number; current?: number; total?: number } | null>(null)
 
   const refreshState = useCallback(async () => {
     try {
@@ -707,6 +708,20 @@ function Popup() {
     return () => clearInterval(id)
   }, [refreshState])
 
+  // Listen for real-time fill progress from content script
+  useEffect(() => {
+    const listener = (msg: any) => {
+      if (msg.type === 'FILL_PROGRESS') {
+        setFillProgress({ step: msg.step, text: msg.text, percent: msg.percent, current: msg.current, total: msg.total })
+        if (msg.step === 'done' || msg.step === 'error') {
+          setTimeout(() => setFillProgress(null), 3000)
+        }
+      }
+    }
+    chrome.runtime.onMessage.addListener(listener)
+    return () => chrome.runtime.onMessage.removeListener(listener)
+  }, [])
+
   const handleClear = async () => {
     await chrome.runtime.sendMessage({ type: 'CLEAR_STATE' })
     setFillResult(null)
@@ -716,6 +731,7 @@ function Popup() {
   const handleFillPage = async () => {
     setFilling(true)
     setFillResult(null)
+    setFillProgress({ step: 'starting', text: 'Starting\u2026', percent: 0 })
     try {
       const result = await chrome.runtime.sendMessage({ type: 'FILL_PAGE' })
         .catch((err: Error) => ({ error: err.message }))
@@ -802,7 +818,7 @@ function Popup() {
               <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>No data loaded</div>
               <div style={{ color: '#8899b4', fontSize: 12 }}>
-                Click <strong>Fill Form</strong> in the Unstract test UI after extracting a document,
+                Click <strong>Fill Form</strong> in the test UI after extracting a document,
                 or paste JSON in the tab above.
               </div>
             </div>
@@ -835,7 +851,7 @@ function Popup() {
                 disabled={filling}
                 style={{
                   ...s.btnPrimary,
-                  marginBottom: 8,
+                  marginBottom: 0,
                   background: filling ? '#1d4ed8' : '#3b82f6',
                   cursor: filling ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -857,7 +873,52 @@ function Popup() {
                 )}
               </button>
 
-              <button onClick={handleClear} style={s.btnSecondary}>Clear Data</button>
+              {/* Real-time fill progress */}
+              {fillProgress && (
+                <div style={{ marginTop: 10, marginBottom: 2 }}>
+                  <div style={{
+                    height: 4, background: '#1c3052', borderRadius: 2,
+                    overflow: 'hidden', marginBottom: 6,
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: fillProgress.step === 'done' ? '100%'
+                           : fillProgress.step === 'error' ? '100%'
+                           : `${fillProgress.percent}%`,
+                      background: fillProgress.step === 'done'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : fillProgress.step === 'error'
+                        ? 'linear-gradient(90deg, #ef4444, #f87171)'
+                        : 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                      borderRadius: 2,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                  <div style={{
+                    fontSize: 12, color: fillProgress.step === 'done' ? '#34d399'
+                                       : fillProgress.step === 'error' ? '#f87171'
+                                       : '#8899b4',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {fillProgress.step !== 'done' && fillProgress.step !== 'error' && (
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: '#3b82f6',
+                        animation: 'pulse-dot 1s ease-in-out infinite',
+                        flexShrink: 0,
+                      }} />
+                    )}
+                    {fillProgress.step === 'done' && (
+                      <span style={{ color: '#34d399', fontSize: 13, flexShrink: 0 }}>&#10003;</span>
+                    )}
+                    {fillProgress.text}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: fillProgress ? 8 : 8 }}>
+                <button onClick={handleClear} style={s.btnSecondary}>Clear Data</button>
+              </div>
             </div>
           )
         )}
@@ -865,7 +926,7 @@ function Popup() {
         {/* ── Paste JSON ── */}
         {tab === 'paste' && (
           <div>
-            <label style={{ ...s.label, marginBottom: 6 }}>Paste JSON from Unstract output:</label>
+            <label style={{ ...s.label, marginBottom: 6 }}>Paste JSON from extraction output:</label>
             <textarea
               style={{ width: '100%', padding: '8px 10px', border: '1px solid #1c3052',
                 borderRadius: 6, fontSize: 12, background: '#0d1929', resize: 'vertical',
@@ -981,6 +1042,7 @@ const s: Record<string, React.CSSProperties> = {
 const styleEl = document.createElement('style')
 styleEl.textContent = BASE_STYLES + `
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse-dot { 0%,100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
 `
 document.head.appendChild(styleEl)
 

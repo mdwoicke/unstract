@@ -99,7 +99,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Register context menu
   chrome.contextMenus.create({
     id: 'unstract-fill',
-    title: 'Unstract: Fill This Page',
+    title: 'MBN: Fill This Page',
     contexts: ['page'],
   })
 
@@ -462,6 +462,10 @@ async function handleMessage(msg: BgMessage, sender?: chrome.runtime.MessageSend
       }
       return { ok: true, count: msg.templates.length }
     }
+
+    // Progress messages from content script — handled by popup listener, background ignores
+    case 'FILL_PROGRESS':
+      return { ok: true }
 
     default:
       return { error: 'Unknown message type' }

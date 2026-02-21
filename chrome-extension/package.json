@@ -1,5 +1,5 @@
 {
-  "name": "unstract-form-filler",
+  "name": "mbn-form-filler",
   "version": "1.0.0",
   "description": "Chrome MV3 extension to auto-fill forms from Unstract document extraction results",
   "type": "module",
