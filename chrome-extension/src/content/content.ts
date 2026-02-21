@@ -15,7 +15,11 @@ import { extractFields, watchForChanges, stopWatching } from './dom-extractor'
 import { injectValue, injectHighlightStyles } from './field-injector'
 import { ShadowHost } from '../ui/shadow-host'
 import { ProgressBar } from '../ui/progress-bar'
+import { TemplateToast } from '../ui/template-toast'
+import { resolveAllMappings } from './template-matcher'
+import { toFriendlyName } from '../store/state'
 import type { UnmappedItem, ExtensionState, FieldDescriptor } from '../store/state'
+import type { TemplateFieldMapping } from '../store/template'
 
 // ─── Debug: confirm content script injection ─────────────────────────────────
 console.log('[Unstract] Content script injected on:', location.href)
@@ -49,10 +53,12 @@ function setup() {
 
   let shadowHost: ShadowHost | null = null
   let progressBar: ProgressBar | null = null
+  let templateToast: TemplateToast | null = null
   let unmappedItems: UnmappedItem[] = []
   let focusedField: FieldDescriptor | null = null
   let allFields: FieldDescriptor[] = []
   let autoFilledSet: Set<string> = new Set()
+  let capturedMappings: Map<string, TemplateFieldMapping> = new Map()
   let processing = false   // concurrent-safe, allows re-trigger
 
   // ─── Relay: Unstract test UI → background ──────────────────────────────────
@@ -83,6 +89,21 @@ function setup() {
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'FILL_NOW') {
       handleFill()
+        .then(result => sendResponse({ ok: true, ...result }))
+        .catch(err => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+
+    if (msg.type === 'GET_CAPTURED_MAPPINGS') {
+      sendResponse({
+        mappings: Array.from(capturedMappings.values()),
+        url: location.href,
+      })
+      return false
+    }
+
+    if (msg.type === 'APPLY_TEMPLATE_TO_PAGE') {
+      handleApplyTemplate(msg.mappings, msg.payload)
         .then(result => sendResponse({ ok: true, ...result }))
         .catch(err => sendResponse({ ok: false, error: String(err) }))
       return true
@@ -173,6 +194,7 @@ function setup() {
     progressBar?.update(75, `Filling ${autoMatches.length} matched fields\u2026`)
 
     // Auto-fill high-confidence matches (skip empty/null values)
+    capturedMappings.clear()
     let filledCount = 0
     for (const match of result.matches) {
       if (!match.auto) continue
@@ -182,7 +204,17 @@ function setup() {
       console.log(`[Unstract] Injecting: selector="${match.fieldId}" value="${v}" (${typeof v})`)
       const ok = injectValue(match.fieldId, v)
       if (!ok) console.warn(`[Unstract] FAILED to inject: selector="${match.fieldId}" value="${v}"`)
-      if (ok) filledCount++
+      if (ok) {
+        filledCount++
+        // Capture mapping for template save
+        const fd = fields.find(f => f.selector === match.fieldId)
+        capturedMappings.set(match.fieldId, {
+          selector: match.fieldId,
+          fieldId: fd?.id ?? '', fieldName: fd?.name ?? '',
+          fieldLabel: fd?.label ?? '', fieldType: fd?.type ?? '',
+          jsonKey: match.jsonKey, source: 'auto', confidence: match.confidence,
+        })
+      }
     }
 
     console.log(`[Unstract] Auto-filled ${filledCount} fields, ${result.unmapped.length} unmapped`)
@@ -203,6 +235,7 @@ function setup() {
 
     if (unmappedItems.length === 0) {
       progressBar?.complete(`Done — filled ${filledCount} fields`)
+      showTemplateSaveToast(filledCount)
       return { filledCount, unmappedCount: 0 }
     }
 
@@ -210,6 +243,7 @@ function setup() {
       `Filled ${filledCount} fields, ${unmappedItems.length} need manual review`,
       3500,
     )
+    showTemplateSaveToast(filledCount)
 
     // Mount overlay and attach focus listeners to UN-filled fields only
     mountOverlay()
@@ -304,6 +338,7 @@ function setup() {
 
   async function handleSelect(item: UnmappedItem, targetEl: HTMLElement) {
     if (!isContextValid()) return
+    const mappingLabel = `${toFriendlyName(item.key)} \u2192 ${getFieldLabel(focusedField!)}`
     await fillAndUpdateState(item, targetEl)
 
     if (unmappedItems.length === 0) {
@@ -327,6 +362,7 @@ function setup() {
           suggestions: suggestions ?? [],
           anchorRect: el.getBoundingClientRect(),
           fieldLabel: getFieldLabel(focusedField!),
+          lastMapping: mappingLabel,
           onSelect: (i) => handleSelect(i, el),
           onTab: (i) => handleTab(i, el),
           onClose: () => shadowHost?.hide(),
@@ -363,6 +399,82 @@ function setup() {
   async function fillAndUpdateState(item: UnmappedItem, targetEl: HTMLElement) {
     injectValue(targetEl, item.value)
     unmappedItems = unmappedItems.filter((u) => u.key !== item.key)
+
+    // Capture manual mapping for template save
+    if (focusedField) {
+      capturedMappings.set(focusedField.selector, {
+        selector: focusedField.selector,
+        fieldId: focusedField.id, fieldName: focusedField.name,
+        fieldLabel: focusedField.label, fieldType: focusedField.type,
+        jsonKey: item.key, source: 'manual', confidence: 1.0,
+      })
+    }
+
     await chrome.runtime.sendMessage({ type: 'FIELD_FILLED', key: item.key }).catch(() => {})
+  }
+
+  // ─── Template save toast ────────────────────────────────────────────────────
+
+  function showTemplateSaveToast(filledCount: number) {
+    if (filledCount <= 0 || capturedMappings.size === 0) return
+
+    templateToast = new TemplateToast()
+    templateToast.show(filledCount, (name: string) => {
+      chrome.runtime.sendMessage({
+        type: 'SAVE_TEMPLATE_FROM_CONTENT',
+        name,
+        url: location.href,
+        mappings: Array.from(capturedMappings.values()),
+      }).catch(err => console.error('[Unstract] Failed to save template:', err))
+    })
+  }
+
+  // ─── Template apply (from background relay) ────────────────────────────────
+
+  async function handleApplyTemplate(
+    mappings: TemplateFieldMapping[],
+    payload: Record<string, string | number | boolean | null>
+  ) {
+    injectHighlightStyles()
+
+    let fields = extractFields()
+    if (fields.length === 0) {
+      return { filledCount: 0, error: 'No form fields found' }
+    }
+
+    // Resolve template mappings to current page fields
+    const resolved = resolveAllMappings(mappings, fields)
+    let filledCount = 0
+
+    for (const { mapping, field } of resolved) {
+      const value = payload[mapping.jsonKey]
+      if (value === null || value === undefined) continue
+      if (typeof value === 'string' && value.trim() === '') continue
+
+      const ok = injectValue(field.selector, value)
+      if (ok) {
+        filledCount++
+        // Update captured mappings with applied template data
+        capturedMappings.set(field.selector, {
+          ...mapping,
+          selector: field.selector,
+          fieldId: field.id,
+          fieldName: field.name,
+          fieldLabel: field.label,
+          fieldType: field.type,
+        })
+      }
+    }
+
+    console.log(`[Unstract] Template applied: ${filledCount}/${resolved.length} fields filled`)
+
+    // Update badge
+    await chrome.runtime.sendMessage({
+      type: 'FILL_DONE',
+      filledCount,
+      unmappedCount: 0,
+    }).catch(() => {})
+
+    return { filledCount, totalMappings: mappings.length, resolvedCount: resolved.length }
   }
 }

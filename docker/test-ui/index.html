@@ -753,10 +753,6 @@
       <div class="pane-header">
         <span class="tab active" id="tabResults">Results</span>
         <span class="spacer"></span>
-        <button class="fill-form-btn" id="fillFormBtnHeader" title="Send extracted data to Chrome extension for form auto-fill" style="display:none">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          Fill Form
-        </button>
       </div>
       <div class="left-content">
 
@@ -857,7 +853,6 @@
   const resultsPanel = document.getElementById('resultsPanel');
   const jsonOutput = document.getElementById('jsonOutput');
   const copyBtn = document.getElementById('copyBtn');
-  const fillFormBtnHeader = document.getElementById('fillFormBtnHeader');
   const apiUrl = document.getElementById('apiUrl');
   const apiKey = document.getElementById('apiKey');
   const previewPlaceholder = document.getElementById('previewPlaceholder');
@@ -1003,7 +998,6 @@
     if (!url || !key) { alert('Please fill in API URL and Key.'); return; }
 
     resultsPanel.classList.remove('visible');
-    fillFormBtnHeader.style.display = 'none';  // hide Fill Form until new results
     submitBtn.disabled = true;
     showStatus('pending', 'Uploading document...');
     startElapsed();
@@ -1128,7 +1122,6 @@
     rawJson = JSON.stringify(cleaned, null, 2);
     jsonOutput.innerHTML = highlightJson(rawJson);
     resultsPanel.classList.add('visible');
-    fillFormBtnHeader.style.display = '';   // show Fill Form in pane header
     submitBtn.disabled = false;
     // Scroll results into view so Fill Form / Copy JSON buttons are immediately visible
     setTimeout(() => resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -1203,7 +1196,7 @@
     fillFormTooltip.className = 'fill-form-tooltip visible';
     if (isError) fillFormTooltip.style.background = '#dc2626';
     else fillFormTooltip.style.background = '#1f2937';
-    const rect = fillFormBtnHeader.getBoundingClientRect();
+    const rect = fillFormBtn.getBoundingClientRect();
     fillFormTooltip.style.top = (rect.bottom + 6) + 'px';
     fillFormTooltip.style.left = rect.left + 'px';
     setTimeout(() => { fillFormTooltip.className = 'fill-form-tooltip'; }, 2500);
@@ -1264,14 +1257,13 @@
     }));
 
     showFillTooltip('✓ Sent ' + keyCount + ' fields to extension — navigate to a form page, then click "Fill This Page" in the extension popup', false);
-    [fillFormBtn, fillFormBtnHeader].forEach(btn => { btn.textContent = '✓ Sent!'; });
+    fillFormBtn.textContent = '✓ Sent!';
     setTimeout(() => {
-      [fillFormBtn, fillFormBtnHeader].forEach(btn => { btn.innerHTML = FILL_SVG; });
+      fillFormBtn.innerHTML = FILL_SVG;
     }, 2000);
   }
 
   fillFormBtn.addEventListener('click', doFillForm);
-  fillFormBtnHeader.addEventListener('click', doFillForm);
 
   // --- Copy (with fallback for insecure contexts) ---
   copyBtn.addEventListener('click', () => {

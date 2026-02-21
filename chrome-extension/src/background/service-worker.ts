@@ -21,6 +21,11 @@ import {
   saveState, loadState, clearState, removeUnmappedItem,
   type ExtensionState, type JsonPayload, type FieldDescriptor,
 } from '../store/state'
+import {
+  saveTemplate, deleteTemplate, getTemplate, listTemplates,
+  findMatchingTemplates, updateTemplateUsage, deriveUrlPattern,
+  type FormTemplate, type TemplateFieldMapping,
+} from '../store/template'
 
 // ─── Message types ────────────────────────────────────────────────────────────
 
@@ -42,6 +47,17 @@ type BgMessage =
   | { type: 'TEST_TYPE_MATCHER';      baseUrl: string }
   | { type: 'GET_CLOUD_CONFIG' }
   | { type: 'SET_CLOUD_CONFIG';   provider: string; apiKey: string; model?: string }
+  // Template messages
+  | { type: 'LIST_TEMPLATES' }
+  | { type: 'GET_TEMPLATE'; templateId: string }
+  | { type: 'SAVE_TEMPLATE'; name: string; urlPattern: string; capturedUrl: string; mappings: TemplateFieldMapping[] }
+  | { type: 'DELETE_TEMPLATE'; templateId: string }
+  | { type: 'GET_CAPTURED_MAPPINGS' }
+  | { type: 'APPLY_TEMPLATE'; templateId: string }
+  | { type: 'SAVE_TEMPLATE_FROM_CONTENT'; name: string; url: string; mappings: TemplateFieldMapping[] }
+  | { type: 'FIND_MATCHING_TEMPLATES'; url: string }
+  | { type: 'EXPORT_TEMPLATES' }
+  | { type: 'IMPORT_TEMPLATES'; templates: FormTemplate[] }
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -79,6 +95,13 @@ async function getCloudConfig() {
 
 chrome.runtime.onInstalled.addListener(async () => {
   console.log('[Unstract BG] Extension installed/reloaded — re-injecting content scripts')
+
+  // Register context menu
+  chrome.contextMenus.create({
+    id: 'unstract-fill',
+    title: 'Unstract: Fill This Page',
+    contexts: ['page'],
+  })
 
   // Migrate stale type matcher config: if stored URL points to localhost,
   // clear it so the new default (server IP) takes effect.
@@ -325,9 +348,178 @@ async function handleMessage(msg: BgMessage, sender?: chrome.runtime.MessageSend
       return { ok: true }
     }
 
+    // ── Template CRUD ─────────────────────────────────────────────────────
+
+    case 'LIST_TEMPLATES':
+      return { templates: await listTemplates() }
+
+    case 'GET_TEMPLATE':
+      return { template: await getTemplate(msg.templateId) }
+
+    case 'SAVE_TEMPLATE': {
+      const state = await loadState()
+      const jsonKeySnapshot = state?.payload ? Object.keys(state.payload) : []
+      const now = new Date().toISOString()
+      const template: FormTemplate = {
+        id: crypto.randomUUID(),
+        name: msg.name,
+        urlPattern: msg.urlPattern,
+        capturedUrl: msg.capturedUrl,
+        createdAt: now,
+        lastUsedAt: now,
+        useCount: 0,
+        mappings: msg.mappings,
+        jsonKeySnapshot,
+      }
+      await saveTemplate(template)
+      return { ok: true, template }
+    }
+
+    case 'SAVE_TEMPLATE_FROM_CONTENT': {
+      const state = await loadState()
+      const jsonKeySnapshot = state?.payload ? Object.keys(state.payload) : []
+      const now = new Date().toISOString()
+      const template: FormTemplate = {
+        id: crypto.randomUUID(),
+        name: msg.name,
+        urlPattern: deriveUrlPattern(msg.url),
+        capturedUrl: msg.url,
+        createdAt: now,
+        lastUsedAt: now,
+        useCount: 0,
+        mappings: msg.mappings,
+        jsonKeySnapshot,
+      }
+      await saveTemplate(template)
+      return { ok: true, template }
+    }
+
+    case 'DELETE_TEMPLATE': {
+      await deleteTemplate(msg.templateId)
+      return { ok: true }
+    }
+
+    case 'GET_CAPTURED_MAPPINGS': {
+      // Relay to active tab content script
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tab?.id) return { mappings: [], url: '' }
+      try {
+        const result = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CAPTURED_MAPPINGS' })
+        return result
+      } catch {
+        return { mappings: [], url: '' }
+      }
+    }
+
+    case 'APPLY_TEMPLATE': {
+      const template = await getTemplate(msg.templateId)
+      if (!template) return { error: 'Template not found' }
+
+      const state = await loadState()
+      if (!state?.payload) return { error: 'No payload loaded' }
+
+      // Compatibility check
+      const currentKeys = new Set(Object.keys(state.payload))
+      const templateKeys = template.jsonKeySnapshot
+      const overlap = templateKeys.filter(k => currentKeys.has(k)).length
+      const compatibility = templateKeys.length > 0
+        ? overlap / templateKeys.length
+        : 1
+
+      // Send to active tab content script
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tab?.id) return { error: 'No active tab' }
+
+      try {
+        const result = await chrome.tabs.sendMessage(tab.id, {
+          type: 'APPLY_TEMPLATE_TO_PAGE',
+          mappings: template.mappings,
+          payload: state.payload,
+        })
+
+        // Update usage stats
+        await updateTemplateUsage(msg.templateId)
+
+        return { ...result, compatibility }
+      } catch {
+        return { error: 'Could not reach content script' }
+      }
+    }
+
+    case 'FIND_MATCHING_TEMPLATES': {
+      const templates = await findMatchingTemplates(msg.url)
+      return { templates }
+    }
+
+    case 'EXPORT_TEMPLATES': {
+      const templates = await listTemplates()
+      return { templates }
+    }
+
+    case 'IMPORT_TEMPLATES': {
+      for (const t of msg.templates) {
+        await saveTemplate(t)
+      }
+      return { ok: true, count: msg.templates.length }
+    }
+
     default:
       return { error: 'Unknown message type' }
   }
 }
+
+// ─── Context menu handler ─────────────────────────────────────────────────────
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== 'unstract-fill') return
+  if (!tab?.id) return
+
+  // Same logic as FILL_PAGE message
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: 'FILL_NOW' })
+  } catch {
+    pendingFillTabId = tab.id
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js'],
+      })
+    } catch {
+      // Can't inject into this tab
+    }
+  }
+})
+
+// ─── Keyboard shortcut handler ───────────────────────────────────────────────
+
+chrome.commands?.onCommand?.addListener(async (command) => {
+  if (command === 'apply-template') {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.id || !tab.url) return
+
+    const state = await loadState()
+    if (!state?.payload) return
+
+    // Find most recently used template for this URL
+    const templates = await findMatchingTemplates(tab.url)
+    if (templates.length === 0) return
+
+    // Sort by lastUsedAt descending, pick most recent
+    templates.sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())
+    const template = templates[0]
+
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        type: 'APPLY_TEMPLATE_TO_PAGE',
+        mappings: template.mappings,
+        payload: state.payload,
+      })
+      await updateTemplateUsage(template.id)
+      setBadge('T', '#8b5cf6')  // purple badge for template apply
+    } catch {
+      // Content script not available
+    }
+  }
+})
 
 console.log('[Unstract BG] Service worker started')

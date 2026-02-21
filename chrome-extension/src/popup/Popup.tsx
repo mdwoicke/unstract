@@ -2,7 +2,7 @@
  * Extension popup — Status, Paste JSON, LM Studio settings, Cloud AI settings.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ExtensionState } from '../store/state'
 import { flattenJson } from '../store/state'
@@ -10,6 +10,8 @@ import type { LMStudioConfig } from '../ai/lmstudio-matcher'
 import { DEFAULT_LMSTUDIO_CONFIG } from '../ai/lmstudio-matcher'
 import type { TypeMatcherConfig } from '../ai/local-matcher'
 import { DEFAULT_TYPE_MATCHER_CONFIG } from '../ai/local-matcher'
+import type { FormTemplate, TemplateFieldMapping } from '../store/template'
+import { deriveUrlPattern } from '../store/template'
 
 // ─── Base styles injected into the popup document ─────────────────────────────
 
@@ -414,9 +416,274 @@ function CloudTab() {
   )
 }
 
+// ─── Templates tab ──────────────────────────────────────────────────────────
+
+function TemplatesTab({ hasPayload }: { hasPayload: boolean }) {
+  const [templates, setTemplates] = useState<FormTemplate[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saveForm, setSaveForm] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [savePattern, setSavePattern] = useState('')
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [applyMsg, setApplyMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [applying, setApplying] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const refreshTemplates = useCallback(async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'LIST_TEMPLATES' })
+      setTemplates(res?.templates ?? [])
+    } catch {}
+  }, [])
+
+  useEffect(() => { refreshTemplates() }, [refreshTemplates])
+
+  const handleStartSave = async () => {
+    setSaveMsg(null)
+    const res = await chrome.runtime.sendMessage({ type: 'GET_CAPTURED_MAPPINGS' })
+      .catch(() => ({ mappings: [], url: '' }))
+
+    if (!res?.mappings?.length) {
+      setSaveMsg({ ok: false, text: 'No field mappings captured yet. Fill a form first.' })
+      return
+    }
+
+    setSavePattern(deriveUrlPattern(res.url))
+    setSaveForm(true)
+  }
+
+  const handleSave = async () => {
+    if (!saveName.trim()) return
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      const captured = await chrome.runtime.sendMessage({ type: 'GET_CAPTURED_MAPPINGS' })
+        .catch(() => ({ mappings: [], url: '' }))
+
+      await chrome.runtime.sendMessage({
+        type: 'SAVE_TEMPLATE',
+        name: saveName.trim(),
+        urlPattern: savePattern,
+        capturedUrl: captured.url || '',
+        mappings: captured.mappings,
+      })
+
+      setSaveMsg({ ok: true, text: 'Template saved!' })
+      setSaveName('')
+      setSaveForm(false)
+      await refreshTemplates()
+    } catch (err) {
+      setSaveMsg({ ok: false, text: `Save failed: ${String(err)}` })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleApply = async (templateId: string) => {
+    setApplyMsg(null)
+    setApplying(templateId)
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'APPLY_TEMPLATE', templateId })
+      if (result?.error) {
+        setApplyMsg({ ok: false, text: result.error })
+      } else {
+        const compat = result.compatibility != null ? Math.round(result.compatibility * 100) : null
+        let msg = `Filled ${result.filledCount ?? 0} fields`
+        if (compat !== null && compat < 50) {
+          msg += ` (${compat}% data compatibility — some fields may not match)`
+        }
+        setApplyMsg({ ok: true, text: msg })
+      }
+    } catch (err) {
+      setApplyMsg({ ok: false, text: String(err) })
+    } finally {
+      setApplying(null)
+    }
+  }
+
+  const handleDelete = async (templateId: string) => {
+    await chrome.runtime.sendMessage({ type: 'DELETE_TEMPLATE', templateId })
+    await refreshTemplates()
+  }
+
+  const handleExport = async () => {
+    const res = await chrome.runtime.sendMessage({ type: 'EXPORT_TEMPLATES' })
+    const blob = new Blob([JSON.stringify(res.templates, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'unstract-templates.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const imported = JSON.parse(text)
+      if (!Array.isArray(imported)) throw new Error('Expected an array of templates')
+      await chrome.runtime.sendMessage({ type: 'IMPORT_TEMPLATES', templates: imported })
+      await refreshTemplates()
+      setSaveMsg({ ok: true, text: `Imported ${imported.length} templates` })
+    } catch (err) {
+      setSaveMsg({ ok: false, text: `Import failed: ${(err as Error).message}` })
+    }
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  return (
+    <div>
+      {/* Save current mapping button */}
+      {hasPayload && (
+        <div style={{ marginBottom: 12 }}>
+          {!saveForm ? (
+            <button onClick={handleStartSave} style={{
+              ...s.btnPrimary,
+              background: '#8b5cf6',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17,21 17,13 7,13 7,21" />
+                <polyline points="7,3 7,8 15,8" />
+              </svg>
+              Save Current Mapping
+            </button>
+          ) : (
+            <div style={{ ...s.strategyBox, border: '1px solid #8b5cf6' }}>
+              <div style={s.fieldGroup}>
+                <label style={s.label}>Template name</label>
+                <input
+                  type="text" style={s.input} value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  placeholder="e.g. Credit Card Application"
+                  onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+                  autoFocus
+                />
+              </div>
+              <div style={s.fieldGroup}>
+                <label style={s.label}>URL pattern</label>
+                <input
+                  type="text" style={s.input} value={savePattern}
+                  onChange={e => setSavePattern(e.target.value)}
+                  placeholder="app.example.com/forms/*"
+                />
+                <div style={s.hint}>
+                  Use * as wildcard. Template will auto-suggest on matching pages.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={handleSave} disabled={saving || !saveName.trim()} style={{ ...s.btnPrimary, background: '#8b5cf6', flex: 1 }}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => setSaveForm(false)} style={{ ...s.btnSm }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Messages */}
+      {saveMsg && (
+        <div style={{
+          padding: '6px 10px', borderRadius: 6, fontSize: 12, marginBottom: 10,
+          background: saveMsg.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+          color: saveMsg.ok ? '#34d399' : '#f87171',
+          border: `1px solid ${saveMsg.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+        }}>
+          {saveMsg.text}
+        </div>
+      )}
+
+      {applyMsg && (
+        <div style={{
+          padding: '6px 10px', borderRadius: 6, fontSize: 12, marginBottom: 10,
+          background: applyMsg.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+          color: applyMsg.ok ? '#34d399' : '#f87171',
+          border: `1px solid ${applyMsg.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+        }}>
+          {applyMsg.text}
+        </div>
+      )}
+
+      {/* Template list */}
+      {templates.length === 0 ? (
+        <div style={s.emptyState}>
+          <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.5 }}>T</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>No saved templates</div>
+          <div style={{ color: '#8899b4', fontSize: 12 }}>
+            Fill a form, then save the mapping as a template for instant re-use.
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#5a6a84', marginBottom: 8,
+            textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Saved Templates ({templates.length})
+          </div>
+          {templates.map(t => (
+            <div key={t.id} style={{
+              background: '#0d1929', border: '1px solid #1c3052', borderRadius: 8,
+              padding: '10px 12px', marginBottom: 8,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#dde5f5' }}>{t.name}</div>
+                <div style={{ fontSize: 11, color: '#5a6a84' }}>
+                  {t.useCount} use{t.useCount !== 1 ? 's' : ''}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#5a6a84', marginBottom: 8 }}>
+                {t.urlPattern} &middot; {t.mappings.length} fields
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={() => handleApply(t.id)}
+                  disabled={!hasPayload || applying === t.id}
+                  style={{
+                    ...s.btnSm,
+                    background: hasPayload ? '#122035' : '#0a1220',
+                    color: hasPayload ? '#5ab4f0' : '#3a4a64',
+                    borderColor: hasPayload ? '#1c3052' : '#162030',
+                    flex: 1,
+                  }}
+                >
+                  {applying === t.id ? 'Applying…' : 'Apply'}
+                </button>
+                <button
+                  onClick={() => handleDelete(t.id)}
+                  style={{ ...s.btnSm, color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Import/Export */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+        <button onClick={handleExport} disabled={templates.length === 0}
+          style={{ ...s.btnSecondary, flex: 1, fontSize: 12 }}>
+          Export All
+        </button>
+        <button onClick={() => fileInputRef.current?.click()}
+          style={{ ...s.btnSecondary, flex: 1, fontSize: 12 }}>
+          Import
+        </button>
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport}
+          style={{ display: 'none' }} />
+      </div>
+    </div>
+  )
+}
+
 // ─── Main popup ───────────────────────────────────────────────────────────────
 
-type Tab = 'status' | 'paste' | 'typematcher' | 'lmstudio' | 'cloud'
+type Tab = 'status' | 'paste' | 'templates' | 'typematcher' | 'lmstudio' | 'cloud'
 
 function Popup() {
   const [tab, setTab] = useState<Tab>('status')
@@ -487,6 +754,7 @@ function Popup() {
   const TABS: Array<{ id: Tab; label: string }> = [
     { id: 'status',      label: 'Status' },
     { id: 'paste',       label: 'Paste JSON' },
+    { id: 'templates',   label: 'Templates' },
     { id: 'typematcher', label: 'Type Match' },
     { id: 'lmstudio',    label: 'LM Studio' },
     // { id: 'cloud',       label: 'Cloud AI' },
@@ -624,6 +892,9 @@ function Popup() {
             </button>
           </div>
         )}
+
+        {/* ── Templates ── */}
+        {tab === 'templates' && <TemplatesTab hasPayload={!!state?.payload} />}
 
         {/* ── Type Matcher ── */}
         {tab === 'typematcher' && <TypeMatcherTab />}

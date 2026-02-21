@@ -31,8 +31,16 @@
     },
     "default_title": "Unstract Form Filler"
   },
-  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "permissions": ["activeTab", "contextMenus", "scripting", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
+  "commands": {
+    "apply-template": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+T"
+      },
+      "description": "Apply most recent matching template"
+    }
+  },
   "web_accessible_resources": [
     {
       "resources": ["models/*", "chunks/*", "assets/*", "logo.jpg"],

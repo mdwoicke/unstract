@@ -14,12 +14,13 @@ export interface OverlayProps {
   suggestions: Array<{ key: string; value: unknown; score: number }>
   anchorRect: DOMRect
   fieldLabel: string
+  lastMapping?: string
   onSelect: (item: UnmappedItem) => void
   onTab: (item: UnmappedItem) => void
   onClose: () => void
 }
 
-export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel, onSelect, onTab, onClose }: OverlayProps) {
+export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel, lastMapping, onSelect, onTab, onClose }: OverlayProps) {
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -115,6 +116,9 @@ export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel,
     <div className="overlay-container" style={panelStyle} onKeyDown={handleKeyDown}>
       <div className="overlay-panel" role="dialog" aria-label="Form field suggestions">
         <div className="overlay-header">
+          {lastMapping && (
+            <div className="overlay-mapping-confirm">{'\u2713'} {lastMapping}</div>
+          )}
           {fieldLabel && (
             <div className="overlay-field-label">{fieldLabel}</div>
           )}
