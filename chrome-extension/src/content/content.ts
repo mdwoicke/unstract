@@ -16,6 +16,7 @@ import { injectValue, injectHighlightStyles } from './field-injector'
 import { ShadowHost } from '../ui/shadow-host'
 import { ProgressBar } from '../ui/progress-bar'
 import { TemplateToast } from '../ui/template-toast'
+import { FieldBadgeManager } from '../ui/field-badges'
 import { resolveAllMappings } from './template-matcher'
 import { toFriendlyName } from '../store/state'
 import type { UnmappedItem, ExtensionState, FieldDescriptor } from '../store/state'
@@ -54,6 +55,7 @@ function setup() {
   let shadowHost: ShadowHost | null = null
   let progressBar: ProgressBar | null = null
   let templateToast: TemplateToast | null = null
+  let badgeManager: FieldBadgeManager | null = null
   let unmappedItems: UnmappedItem[] = []
   let focusedField: FieldDescriptor | null = null
   let allFields: FieldDescriptor[] = []
@@ -257,6 +259,7 @@ function setup() {
       progressBar?.complete(`Done — filled ${filledCount} fields`)
       chrome.runtime.sendMessage({ type: 'FILL_PROGRESS', step: 'done', text: `Filled ${filledCount} fields`, percent: 100 }).catch(() => {})
       showTemplateSaveToast(filledCount)
+      mountBadges()
       return { filledCount, unmappedCount: 0 }
     }
 
@@ -271,6 +274,9 @@ function setup() {
     mountOverlay()
     attachFocusListeners(fields, [...autoFilledSet])
 
+    // Mount field badges on ALL fields (filled and unfilled)
+    mountBadges()
+
     return { filledCount, unmappedCount: unmappedItems.length }
   }
 
@@ -280,6 +286,62 @@ function setup() {
     if (!shadowHost) {
       shadowHost = new ShadowHost()
     }
+  }
+
+  function mountBadges() {
+    if (badgeManager) badgeManager.destroy()
+    badgeManager = new FieldBadgeManager()
+    badgeManager.mount(allFields, autoFilledSet, onBadgeClick)
+  }
+
+  async function onBadgeClick(field: FieldDescriptor, el: HTMLElement, isFilled: boolean) {
+    if (!isContextValid()) return
+    el.focus()
+    mountOverlay()
+
+    if (!isFilled) {
+      // Unfilled: use existing focus handler which opens suggestions
+      onFieldFocus(field, el)
+      return
+    }
+
+    // Filled field: build mapping label before freeing
+    const currentMapping = capturedMappings.get(field.selector)
+    const mappingLabel = currentMapping
+      ? `${getFieldLabel(field)} \u2192 ${toFriendlyName(currentMapping.jsonKey)}`
+      : undefined
+
+    // Free the current mapping back into the pool for remapping
+    if (currentMapping) {
+      const state = await chrome.runtime.sendMessage({ type: 'GET_STATE' }).catch(() => null)
+      const payload = state?.payload ?? {} as Record<string, unknown>
+      const val = payload[currentMapping.jsonKey]
+      unmappedItems.push({ key: currentMapping.jsonKey, value: val as any ?? null })
+      autoFilledSet.delete(field.selector)
+      capturedMappings.delete(field.selector)
+      badgeManager?.markUnfilled(field.selector)
+    }
+
+    // Now open overlay with the freed key + remaining unmapped items
+    focusedField = field
+
+    const { suggestions } = await chrome.runtime.sendMessage({
+      type: 'RANK_SUGGEST',
+      fieldText: field.context,
+    }).catch(() => ({ suggestions: [] }))
+
+    const rect = el.getBoundingClientRect()
+
+    shadowHost!.show({
+      unmapped: unmappedItems,
+      suggestions: suggestions ?? [],
+      anchorRect: rect,
+      fieldLabel: getFieldLabel(field),
+      lastMapping: mappingLabel,
+      onSelect: (item) => handleSelect(item, el),
+      onTab: (item) => handleTab(item, el),
+      onClose: () => shadowHost?.hide(),
+    })
   }
 
   function attachFocusListeners(
@@ -430,6 +492,7 @@ function setup() {
         fieldLabel: focusedField.label, fieldType: focusedField.type,
         jsonKey: item.key, source: 'manual', confidence: 1.0,
       })
+      badgeManager?.markFilled(focusedField.selector)
     }
 
     await chrome.runtime.sendMessage({ type: 'FIELD_FILLED', key: item.key }).catch(() => {})
@@ -490,12 +553,22 @@ function setup() {
 
     console.log(`[Unstract] Template applied: ${filledCount}/${resolved.length} fields filled`)
 
+    // Update state for badge manager
+    allFields = fields
+    autoFilledSet = new Set(resolved.filter(r => {
+      const v = payload[r.mapping.jsonKey]
+      return v !== null && v !== undefined && !(typeof v === 'string' && v.trim() === '')
+    }).map(r => r.field.selector))
+
     // Update badge
     await chrome.runtime.sendMessage({
       type: 'FILL_DONE',
       filledCount,
       unmappedCount: 0,
     }).catch(() => {})
+
+    // Mount field badges after template apply
+    mountBadges()
 
     return { filledCount, totalMappings: mappings.length, resolvedCount: resolved.length }
   }

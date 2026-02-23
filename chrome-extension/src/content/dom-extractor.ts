@@ -7,7 +7,7 @@
 import type { FieldDescriptor } from '../store/state'
 
 const FIELD_TYPES = new Set(['text', 'email', 'tel', 'number', 'date', 'url',
-  'search', 'password', 'select-one', 'select-multiple', 'textarea',
+  'search', 'password', 'select', 'select-one', 'select-multiple', 'textarea',
   'checkbox', 'radio', 'time', 'month', 'week', 'datetime-local'])
 
 let _observer: MutationObserver | null = null

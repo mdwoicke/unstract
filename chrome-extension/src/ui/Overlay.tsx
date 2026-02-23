@@ -26,6 +26,27 @@ function hasValue(item: UnmappedItem): boolean {
   return true
 }
 
+/** Return a short icon + tooltip for the value type. */
+function typeIcon(value: UnmappedItem['value']): { icon: string; label: string; cls: string } {
+  if (value === null || value === undefined)
+    return { icon: '\u2205', label: 'null', cls: 'type-null' }
+  if (typeof value === 'boolean')
+    return { icon: 'T/F', label: 'true / false', cls: 'type-bool' }
+  if (typeof value === 'number')
+    return { icon: '#', label: 'number', cls: 'type-num' }
+  const s = String(value)
+  // Boolean-like strings
+  if (/^(yes|no|true|false)$/i.test(s))
+    return { icon: 'T/F', label: 'true / false', cls: 'type-bool' }
+  // Radio-like: short constrained values (male/female, m/f, single/married, etc.)
+  if (/^(male|female|m|f|single|married|divorced|widowed|other)$/i.test(s))
+    return { icon: '\u25C9', label: 'radio', cls: 'type-radio' }           // ◉
+  // Dropdown-like: short codes (2-3 uppercase letters like state codes)
+  if (s.length <= 3 && /^[A-Z]{2,3}$/i.test(s))
+    return { icon: '\u25BC', label: 'dropdown', cls: 'type-select' }       // ▼
+  return { icon: 'Aa', label: 'text', cls: 'type-text' }
+}
+
 export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel, lastMapping, onSelect, onTab, onClose }: OverlayProps) {
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
@@ -188,6 +209,9 @@ export default function Overlay({ unmapped, suggestions, anchorRect, fieldLabel,
               aria-selected={idx === selectedIdx}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className={`overlay-type-icon ${typeIcon(item.value).cls}`} title={typeIcon(item.value).label}>
+                  {typeIcon(item.value).icon}
+                </span>
                 <span className="overlay-item-key">{toFriendlyName(item.key)}</span>
                 {item.isSuggested && (
                   <span className="overlay-item-badge badge-suggested">AI</span>

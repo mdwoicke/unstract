@@ -979,7 +979,7 @@ const s: Record<string, React.CSSProperties> = {
     padding: '16px 16px 10px', borderBottom: '1px solid #1c3052', background: '#0d1929',
   },
   title:    { fontWeight: 700, fontSize: 15, color: '#dde5f5' },
-  subtitle: { fontSize: 11, color: '#5a6a84', letterSpacing: '0.05em', textTransform: 'uppercase' },
+  subtitle: { fontSize: 11, color: '#ffffff', letterSpacing: '0.05em', textTransform: 'uppercase' },
   tabs: {
     display: 'flex', borderBottom: '1px solid #1c3052', background: '#0d1929',
     overflowX: 'auto',
